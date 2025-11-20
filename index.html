@@ -243,15 +243,8 @@
         }
         */
 
-            // data.json 파일 로드
-            fetch('data.json')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('HTTP error! status: ' + response.status);
-                }
-                return response.json();
-            })
-            .then(data => {
+            // data.json 파일 로드 (CORS 문제 해결: fetch와 XMLHttpRequest 모두 시도)
+            function processData(data) {
                 console.log('데이터 로드 성공:', data.length, '개 항목');
                 
                 // 모든 마커를 저장할 배열
@@ -267,21 +260,73 @@
                     // 유효한 좌표인지 확인 (0이 아니고, 숫자이고, 유효한 범위 내)
                     if (lat && lng && !isNaN(lat) && !isNaN(lng) && 
                         lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                        // 팝업 내용 구성
+                        
+                        // Tooltip 내용 구성 (마우스 오버 시 표시)
+                        var tooltipContent = '<div style="font-weight: bold; margin-bottom: 3px;">' + 
+                            (location.FCLTY_NM || '자전거 대여소') + '</div>';
+                        if (location.SIGNGU_NM) {
+                            tooltipContent += '<div style="font-size: 12px; color: #ddd;">' + location.SIGNGU_NM + '</div>';
+                        }
+                        
+                        // Popup 내용 구성 (클릭 시 표시 - 더 자세한 정보)
                         var popupContent = '<div class="info">';
-                        popupContent += '<strong>' + (location.FCLTY_NM || '자전거 대여소') + '</strong>';
+                        popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 8px;">' + 
+                            (location.FCLTY_NM || '자전거 대여소') + '</strong>';
+                        
+                        if (location.LCLAS_NM) {
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시설분류:</span> ' + 
+                                location.LCLAS_NM + '</div>';
+                        }
+                        
                         if (location.FCLTY_ROAD_NM_ADDR) {
-                            popupContent += '<br>' + location.FCLTY_ROAD_NM_ADDR;
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">주소:</span><br>' + 
+                                location.FCLTY_ROAD_NM_ADDR + '</div>';
                         }
-                        if (location.CTPRVN_NM && location.SIGNGU_NM) {
-                            popupContent += '<br><small>' + location.CTPRVN_NM + ' ' + location.SIGNGU_NM + '</small>';
+                        
+                        if (location.SIGNGU_NM) {
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시군구:</span> ' + 
+                                location.SIGNGU_NM + '</div>';
                         }
+                        
+                        if (location.LEGALDONG_NM) {
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">법정동:</span> ' + 
+                                location.LEGALDONG_NM + '</div>';
+                        }
+                        
+                        if (location.BULD_NM) {
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">건물명:</span> ' + 
+                                location.BULD_NM + '</div>';
+                        }
+                        
+                        if (location.CTPRVN_NM) {
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시도:</span> ' + 
+                                location.CTPRVN_NM + '</div>';
+                        }
+                        
+                        if (location.MLSFC_NM) {
+                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">상세분류:</span> ' + 
+                                location.MLSFC_NM + '</div>';
+                        }
+                        
+                        if (location.ADDR_ENG_NM) {
+                            popupContent += '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 12px; color: #888;">' + 
+                                location.ADDR_ENG_NM + '</div>';
+                        }
+                        
                         popupContent += '</div>';
                         
                         // 마커 생성
                         var marker = L.marker([lat, lng])
                             .addTo(map)
-                            .bindPopup(popupContent);
+                            .bindTooltip(tooltipContent, {
+                                permanent: false,
+                                direction: 'top',
+                                className: 'custom-tooltip',
+                                offset: [0, -10]
+                            })
+                            .bindPopup(popupContent, {
+                                maxWidth: 300
+                            });
                         
                         markers.push(marker);
                     } else {
@@ -304,11 +349,59 @@
                     console.error('표시할 마커가 없습니다. 데이터를 확인해주세요.');
                     alert('표시할 마커가 없습니다. 브라우저 콘솔을 확인해주세요.');
                 }
-            })
-            .catch(error => {
-                console.error('데이터를 불러오는 중 오류가 발생했습니다:', error);
-                alert('데이터를 불러올 수 없습니다. data.json 파일을 확인해주세요.\n에러: ' + error.message);
-            });
+            }
+            
+            function handleError(error, method) {
+                console.error('데이터를 불러오는 중 오류가 발생했습니다 (' + method + '):', error);
+                var errorMsg = '데이터를 불러올 수 없습니다.\n\n';
+                errorMsg += '가능한 원인:\n';
+                errorMsg += '1. CORS 정책 (file:// 프로토콜 사용 시)\n';
+                errorMsg += '2. data.json 파일이 같은 폴더에 없음\n';
+                errorMsg += '3. 파일 경로 오류\n\n';
+                errorMsg += '해결 방법:\n';
+                errorMsg += '로컬 웹 서버를 사용하세요:\n';
+                errorMsg += '- Python: python -m http.server 8000\n';
+                errorMsg += '- Node.js: npx http-server\n';
+                errorMsg += '그 후 http://localhost:8000/index.html 접속\n\n';
+                errorMsg += '에러: ' + (error.message || error);
+                alert(errorMsg);
+            }
+            
+            // 먼저 fetch 시도 (HTTP 서버 사용 시)
+            fetch('data.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    processData(data);
+                })
+                .catch(fetchError => {
+                    // fetch 실패 시 XMLHttpRequest 시도 (file:// 프로토콜 대응)
+                    console.warn('fetch 실패, XMLHttpRequest로 재시도:', fetchError);
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('GET', 'data.json', true);
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4) {
+                            if (xhr.status === 200 || xhr.status === 0) { // 0은 file:// 프로토콜에서 성공
+                                try {
+                                    var data = JSON.parse(xhr.responseText);
+                                    processData(data);
+                                } catch (parseError) {
+                                    handleError(parseError, 'XMLHttpRequest (JSON 파싱)');
+                                }
+                            } else {
+                                handleError(new Error('HTTP status: ' + xhr.status), 'XMLHttpRequest');
+                            }
+                        }
+                    };
+                    xhr.onerror = function() {
+                        handleError(new Error('Network error'), 'XMLHttpRequest');
+                    };
+                    xhr.send(null);
+                });
         }
     </script>
 </body>
