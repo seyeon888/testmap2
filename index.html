@@ -10,6 +10,12 @@
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
           crossorigin=""/>
     
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+          crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+          crossorigin=""/>
+    
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -19,6 +25,10 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <!-- Leaflet MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
             crossorigin=""></script>
     
     <script>
@@ -200,6 +210,9 @@
 
         // 지도 초기화 (한국 중심)
         var map = L.map('map').setView([36.5, 127.5], 7);
+        
+        // 마커 클러스터 그룹 변수
+        var markerClusterGroup = null;
 
         // Google Maps 스타일과 유사한 밝고 깔끔한 스타일의 타일 사용
         // 제공된 스타일은 밝은 배경, 회색 도로, 파란색 물을 특징으로 하므로
@@ -315,9 +328,8 @@
                         
                         popupContent += '</div>';
                         
-                        // 마커 생성
+                        // 마커 생성 (아직 지도에 추가하지 않음)
                         var marker = L.marker([lat, lng])
-                            .addTo(map)
                             .bindTooltip(tooltipContent, {
                                 permanent: false,
                                 direction: 'top',
@@ -340,8 +352,34 @@
                 console.log('유효한 마커:', markers.length, '개');
                 console.log('유효하지 않은 데이터:', invalidCount, '개');
 
-                // 모든 마커를 포함하는 범위 계산
+                // 기존 클러스터 그룹 제거
+                if (markerClusterGroup) {
+                    map.removeLayer(markerClusterGroup);
+                    markerClusterGroup = null;
+                }
+
+                // 마커 개수에 따라 클러스터링 또는 개별 표시
                 if (markers.length > 0) {
+                    if (markers.length >= 20) {
+                        // 20개 이상: 클러스터링 활성화
+                        console.log('마커 클러스터링 활성화 (20개 이상)');
+                        markerClusterGroup = L.markerClusterGroup({
+                            showCoverageOnHover: false,
+                            maxClusterRadius: 50,
+                            spiderfyOnMaxZoom: true,
+                            removeOutsideVisibleBounds: true
+                        });
+                        markerClusterGroup.addLayers(markers);
+                        map.addLayer(markerClusterGroup);
+                    } else {
+                        // 20개 미만: 개별 마커 표시
+                        console.log('개별 마커 표시 (20개 미만)');
+                        markers.forEach(function(marker) {
+                            marker.addTo(map);
+                        });
+                    }
+
+                    // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
                     map.fitBounds(group.getBounds().pad(0.1));
                     console.log('지도 범위 조정 완료');
@@ -406,4 +444,3 @@
     </script>
 </body>
 </html>
-
