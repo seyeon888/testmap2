@@ -391,34 +391,6 @@
             }
         }
 
-        function loadMarkers() {
-        
-        // Google Maps API 키가 있는 경우 아래 주석을 해제하여 Google Maps 스타일을 사용할 수 있습니다
-        /*
-        if (typeof GOOGLE_MAPS_API_KEY !== 'undefined' && GOOGLE_MAPS_API_KEY !== 'YOUR_API_KEY') {
-            // Google Maps API 스크립트 동적 로드
-            var script = document.createElement('script');
-            script.src = 'https://maps.googleapis.com/maps/api/js?key=' + GOOGLE_MAPS_API_KEY + '&libraries=geometry&callback=initGoogleMap';
-            document.head.appendChild(script);
-            
-            // Leaflet Google Mutant Plugin 로드
-            var mutantScript = document.createElement('script');
-            mutantScript.src = 'https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js';
-            mutantScript.onload = function() {
-                window.initGoogleMap = function() {
-                    var googleLayer = L.gridLayer.googleMutant({
-                        type: 'roadmap',
-                        styles: mapStyle
-                    });
-                    map.removeLayer(map._layers[Object.keys(map._layers)[0]]); // 기존 타일 제거
-                    googleLayer.addTo(map);
-                };
-            };
-            document.head.appendChild(mutantScript);
-        }
-
-        */
-
         function filterGeojsonByDistricts(geojson, normalizedWhitelist) {
             if (!geojson || !geojson.features || !geojson.features.length) {
                 return geojson;
@@ -531,6 +503,34 @@
             }
             return String(name).replace(/\s+/g, '').replace(/[^가-힣A-Za-z0-9]/g, '');
         }
+
+        function loadMarkers() {
+        
+        // Google Maps API 키가 있는 경우 아래 주석을 해제하여 Google Maps 스타일을 사용할 수 있습니다
+        /*
+        if (typeof GOOGLE_MAPS_API_KEY !== 'undefined' && GOOGLE_MAPS_API_KEY !== 'YOUR_API_KEY') {
+            // Google Maps API 스크립트 동적 로드
+            var script = document.createElement('script');
+            script.src = 'https://maps.googleapis.com/maps/api/js?key=' + GOOGLE_MAPS_API_KEY + '&libraries=geometry&callback=initGoogleMap';
+            document.head.appendChild(script);
+            
+            // Leaflet Google Mutant Plugin 로드
+            var mutantScript = document.createElement('script');
+            mutantScript.src = 'https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js';
+            mutantScript.onload = function() {
+                window.initGoogleMap = function() {
+                    var googleLayer = L.gridLayer.googleMutant({
+                        type: 'roadmap',
+                        styles: mapStyle
+                    });
+                    map.removeLayer(map._layers[Object.keys(map._layers)[0]]); // 기존 타일 제거
+                    googleLayer.addTo(map);
+                };
+            };
+            document.head.appendChild(mutantScript);
+        }
+
+        */
 
             // data.json 파일 로드 (CORS 문제 해결: fetch와 XMLHttpRequest 모두 시도)
             function processData(data) {
