@@ -232,7 +232,7 @@
         var seoulBoundaryLayer = null;
         var seoulMaskLayer = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
-        var clusterOnlyMaxZoom = 39; // 해당 줌 이하에서는 항상 클러스터로 표시
+        var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
 
         // 서울 시군구 이름 목록
         var seoulDistricts = [
@@ -679,6 +679,10 @@
                     // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
                     map.fitBounds(group.getBounds().pad(0.1));
+                    var currentZoom = map.getZoom();
+                    if (currentZoom > clusterOnlyMaxZoom) {
+                        map.setZoom(clusterOnlyMaxZoom);
+                    }
                     console.log('지도 범위 조정 완료');
                 } else {
                     console.error('표시할 마커가 없습니다. 데이터를 확인해주세요.');
