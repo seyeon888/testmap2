@@ -22,6 +22,27 @@
 <body>
     <div id="map"></div>
 
+    <!-- 옵션 패널 -->
+    <div id="options-panel">
+        <div class="options-header">
+            <h3>마커 옵션</h3>
+            <button id="toggle-panel" class="toggle-btn">−</button>
+        </div>
+        <div class="options-content">
+            <div class="option-group">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-all-markers" checked>
+                    <span class="slider"></span>
+                    <span class="toggle-label">전체 마커 표시</span>
+                </label>
+            </div>
+            <div class="option-group">
+                <div class="district-header">구별 필터</div>
+                <div id="district-filters" class="district-filters"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
@@ -236,6 +257,8 @@
         var baseTileLayer = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
         var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
+        var allMarkers = []; // 모든 마커 저장 (필터링용)
+        var markersByDistrict = {}; // 구별 마커 저장
 
         // 마스크용 커스텀 pane (타일 위, 경계선 아래)
         map.createPane('maskPane');
@@ -259,6 +282,9 @@
             popupAnchor: [0, -36],
             tooltipAnchor: [0, -30]
         });
+        
+        // 옵션 패널 초기화 (페이지 로드 시)
+        initOptionsPanel();
         
         // 지도가 로드된 후 데이터 로드
         map.whenReady(function() {
@@ -670,7 +696,11 @@
                         popupContent += '</div>';
                         
                         // 마커 생성 (아직 지도에 추가하지 않음)
-                        var marker = L.marker([lat, lng], { icon: bikeMarkerIcon })
+                        var district = location.SIGNGU_NM || '기타';
+                        var marker = L.marker([lat, lng], { 
+                            icon: bikeMarkerIcon,
+                            district: district
+                        })
                             .bindTooltip(tooltipContent, {
                                 permanent: false,
                                 direction: 'top',
@@ -682,6 +712,12 @@
                             });
                         
                         markers.push(marker);
+                        
+                        // 구별 마커 저장
+                        if (!markersByDistrict[district]) {
+                            markersByDistrict[district] = [];
+                        }
+                        markersByDistrict[district].push(marker);
                     } else {
                         invalidCount++;
                         if (index < 5) { // 처음 5개만 로그
@@ -724,6 +760,9 @@
                         });
                         markerClusterGroup.addLayers(markers);
                         map.addLayer(markerClusterGroup);
+                        
+                        // 전체 마커 배열 저장
+                        allMarkers = markers.slice();
 
                     // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
@@ -733,6 +772,9 @@
                         map.setZoom(clusterOnlyMaxZoom);
                     }
                     console.log('지도 범위 조정 완료');
+                    
+                    // 옵션 패널 초기화
+                    initOptionsPanel();
                 } else {
                     console.error('표시할 마커가 없습니다. 데이터를 확인해주세요.');
                     alert('표시할 마커가 없습니다. 브라우저 콘솔을 확인해주세요.');
@@ -790,6 +832,90 @@
                     };
                     xhr.send(null);
                 });
+        }
+        
+        // 옵션 패널 초기화
+        function initOptionsPanel() {
+            var districtFilters = document.getElementById('district-filters');
+            
+            // 이미 초기화되었으면 체크박스만 업데이트
+            if (districtFilters.children.length === 0) {
+                seoulDistricts.forEach(function(district) {
+                    var label = document.createElement('label');
+                    label.className = 'district-checkbox';
+                    label.innerHTML = '<input type="checkbox" class="district-filter" data-district="' + district + '" checked> ' + district;
+                    districtFilters.appendChild(label);
+                });
+                
+                // 구별 필터 체크박스 이벤트 리스너
+                document.querySelectorAll('.district-filter').forEach(function(checkbox) {
+                    checkbox.addEventListener('change', function() {
+                        updateMarkers();
+                    });
+                });
+            }
+            
+            // 전체 마커 토글 이벤트 리스너 (중복 방지)
+            var toggleAll = document.getElementById('toggle-all-markers');
+            var newToggleAll = toggleAll.cloneNode(true);
+            toggleAll.parentNode.replaceChild(newToggleAll, toggleAll);
+            newToggleAll.addEventListener('change', function(e) {
+                updateMarkers();
+            });
+            
+            // 패널 토글 버튼 이벤트 리스너 (중복 방지)
+            var togglePanel = document.getElementById('toggle-panel');
+            var newTogglePanel = togglePanel.cloneNode(true);
+            togglePanel.parentNode.replaceChild(newTogglePanel, togglePanel);
+            newTogglePanel.addEventListener('click', function() {
+                var panel = document.getElementById('options-panel');
+                var content = document.querySelector('.options-content');
+                var btn = this;
+                
+                if (panel.classList.contains('collapsed')) {
+                    panel.classList.remove('collapsed');
+                    content.style.display = 'block';
+                    btn.textContent = '−';
+                } else {
+                    panel.classList.add('collapsed');
+                    content.style.display = 'none';
+                    btn.textContent = '+';
+                }
+            });
+        }
+        
+        // 마커 업데이트 (필터링)
+        function updateMarkers() {
+            if (!markerClusterGroup) {
+                return;
+            }
+            
+            var showAll = document.getElementById('toggle-all-markers').checked;
+            var visibleDistricts = [];
+            
+            if (showAll) {
+                document.querySelectorAll('.district-filter').forEach(function(checkbox) {
+                    if (checkbox.checked) {
+                        visibleDistricts.push(checkbox.dataset.district);
+                    }
+                });
+            }
+            
+            // 모든 마커 제거
+            markerClusterGroup.clearLayers();
+            
+            if (showAll && visibleDistricts.length > 0) {
+                var markersToShow = [];
+                allMarkers.forEach(function(marker) {
+                    var district = marker.options.district;
+                    if (visibleDistricts.indexOf(district) !== -1) {
+                        markersToShow.push(marker);
+                    }
+                });
+                markerClusterGroup.addLayers(markersToShow);
+            } else if (!showAll) {
+                // 전체 마커 숨김
+            }
         }
     </script>
 </body>
