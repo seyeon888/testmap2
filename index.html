@@ -375,9 +375,25 @@
                         console.log('마커 클러스터링 활성화 (20개 이상)');
                         markerClusterGroup = L.markerClusterGroup({
                             showCoverageOnHover: false,
-                            maxClusterRadius: 50,
-                            spiderfyOnMaxZoom: true,
-                            removeOutsideVisibleBounds: true
+                            maxClusterRadius: 85,
+                            spiderfyOnMaxZoom: false,
+                            disableClusteringAtZoom: 15,
+                            removeOutsideVisibleBounds: true,
+                            iconCreateFunction: function(cluster) {
+                                var count = cluster.getChildCount();
+                                var sizeClass = 'cluster-small';
+                                if (count >= 50) {
+                                    sizeClass = 'cluster-large';
+                                } else if (count >= 20) {
+                                    sizeClass = 'cluster-medium';
+                                }
+                                return L.divIcon({
+                                    html: '<div class="bike-cluster ' + sizeClass + '"><span>' + count + '</span></div>',
+                                    className: '',
+                                    iconSize: [48, 48],
+                                    iconAnchor: [24, 24]
+                                });
+                            }
                         });
                         markerClusterGroup.addLayers(markers);
                         map.addLayer(markerClusterGroup);
