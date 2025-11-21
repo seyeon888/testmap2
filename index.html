@@ -232,6 +232,7 @@
         var seoulBoundaryLayer = null;
         var seoulMaskLayer = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
+        var clusterOnlyMaxZoom = 14; // 해당 줌 이하에서는 항상 클러스터로 표시
 
         // 서울 시군구 이름 목록
         var seoulDistricts = [
@@ -654,7 +655,7 @@
                         showCoverageOnHover: false,
                         maxClusterRadius: 95,
                         spiderfyOnMaxZoom: false,
-                        disableClusteringAtZoom: 15,
+                        disableClusteringAtZoom: clusterOnlyMaxZoom + 1,
                         removeOutsideVisibleBounds: true,
                         iconCreateFunction: function(cluster) {
                             var count = cluster.getChildCount();
