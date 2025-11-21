@@ -230,7 +230,6 @@
         // 마커 클러스터 그룹 변수
         var markerClusterGroup = null;
         var seoulBoundaryLayer = null;
-        var seoulMaskLayer = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
         var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
 
@@ -259,7 +258,10 @@
             attribution: '© OpenStreetMap contributors © CARTO',
             subdomains: 'abcd',
             minZoom: 10,
-            maxZoom: 40
+            maxZoom: 40,
+            bounds: seoulBounds,
+            noWrap: true,
+            keepBuffer: 1
         }).addTo(map);
         
         // 지도가 로드된 후 데이터 로드
@@ -300,96 +302,10 @@
                         map.fitBounds(boundaryBounds);
                     }
 
-                    var mergedBoundary = mergeFeaturesForMask(boundarySource);
-                    applySeoulMask(mergedBoundary || boundarySource);
                 })
                 .catch(function(error) {
                     console.error('서울 경계선을 로드하는 중 오류 발생:', error);
                 });
-        }
-
-        function applySeoulMask(geojson) {
-            if (seoulMaskLayer) {
-                map.removeLayer(seoulMaskLayer);
-                seoulMaskLayer = null;
-            }
-
-            var seoulRings = extractSeoulRings(geojson);
-            if (!seoulRings.length) {
-                return;
-            }
-
-            var outerRing = [
-                [85, -180],
-                [85, 180],
-                [-85, 180],
-                [-85, -180]
-            ];
-
-            seoulMaskLayer = L.polygon([outerRing].concat(seoulRings), {
-                color: '#f2f2f2',
-                weight: 0,
-                fillColor: '#f2f2f2',
-                fillOpacity: 1,
-                interactive: false
-            }).addTo(map);
-        }
-
-        function extractSeoulRings(geojson) {
-            var rings = [];
-            if (!geojson || !geojson.features) {
-                return rings;
-            }
-
-            geojson.features.forEach(function(feature) {
-                var geometry = feature.geometry;
-                if (!geometry || !geometry.coordinates) {
-                    return;
-                }
-
-                if (geometry.type === 'Polygon') {
-                    geometry.coordinates.forEach(function(ring) {
-                        rings.push(ring.map(function(coord) {
-                            return [coord[1], coord[0]];
-                        }));
-                    });
-                } else if (geometry.type === 'MultiPolygon') {
-                    geometry.coordinates.forEach(function(polygon) {
-                        polygon.forEach(function(ring) {
-                            rings.push(ring.map(function(coord) {
-                                return [coord[1], coord[0]];
-                            }));
-                        });
-                    });
-                }
-            });
-
-            return rings;
-        }
-
-        function mergeFeaturesForMask(geojson) {
-            if (!geojson || !geojson.features || geojson.features.length === 0) {
-                return null;
-            }
-
-            if (typeof turf === 'undefined' || !turf.union) {
-                console.warn('Turf.js가 로드되지 않아 경계 병합을 건너뜁니다.');
-                return geojson;
-            }
-
-            try {
-                var merged = geojson.features[0];
-                for (var i = 1; i < geojson.features.length; i++) {
-                    merged = turf.union(merged, geojson.features[i]);
-                }
-                return {
-                    type: 'FeatureCollection',
-                    features: [merged]
-                };
-            } catch (error) {
-                console.warn('서울 경계를 병합하는 중 오류가 발생했습니다. 원본 데이터를 사용합니다.', error);
-                return geojson;
-            }
         }
 
         function filterGeojsonByDistricts(geojson, normalizedWhitelist) {
@@ -505,6 +421,28 @@
             return String(name).replace(/\s+/g, '').replace(/[^가-힣A-Za-z0-9]/g, '');
         }
 
+        function isLocationInSeoul(location) {
+            if (!location) {
+                return false;
+            }
+            var lat = parseFloat(location.lat);
+            var lng = parseFloat(location.lng);
+            if (!(lat && lng) || isNaN(lat) || isNaN(lng) ||
+                lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                return false;
+            }
+            if (location.CTPRVN_NM && location.CTPRVN_NM.indexOf('서울') !== -1) {
+                return true;
+            }
+            if (location.FCLTY_ROAD_NM_ADDR && location.FCLTY_ROAD_NM_ADDR.indexOf('서울특별시') !== -1) {
+                return true;
+            }
+            if (location.SIGNGU_NM && seoulDistricts.indexOf(location.SIGNGU_NM) !== -1) {
+                return true;
+            }
+            return seoulBounds.contains([lat, lng]);
+        }
+
         function loadMarkers() {
         
         // Google Maps API 키가 있는 경우 아래 주석을 해제하여 Google Maps 스타일을 사용할 수 있습니다
@@ -537,12 +475,15 @@
             function processData(data) {
                 console.log('데이터 로드 성공:', data.length, '개 항목');
                 
+                var filteredData = data.filter(isLocationInSeoul);
+                console.log('서울 데이터 필터링:', filteredData.length, '개 항목');
+
                 // 모든 마커를 저장할 배열
                 var markers = [];
                 var invalidCount = 0;
                 
                 // 각 위치에 마커 추가
-                data.forEach(function(location, index) {
+                filteredData.forEach(function(location, index) {
                     // 위도와 경도 확인 (업데이트된 JSON 구조: lat, lng 사용)
                     var lat = parseFloat(location.lat);
                     var lng = parseFloat(location.lng);
@@ -550,22 +491,6 @@
                     // 유효한 좌표인지 확인 (0이 아니고, 숫자이고, 유효한 범위 내)
                     if (lat && lng && !isNaN(lat) && !isNaN(lng) && 
                         lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-
-                        var isSeoul = false;
-                        if (location.CTPRVN_NM && location.CTPRVN_NM.indexOf('서울') !== -1) {
-                            isSeoul = true;
-                        } else if (location.FCLTY_ROAD_NM_ADDR && location.FCLTY_ROAD_NM_ADDR.indexOf('서울특별시') !== -1) {
-                            isSeoul = true;
-                        } else if (location.SIGNGU_NM && seoulDistricts.indexOf(location.SIGNGU_NM) !== -1) {
-                            isSeoul = true;
-                        } else if (seoulBounds.contains([lat, lng])) {
-                            isSeoul = true;
-                        }
-
-                        if (!isSeoul) {
-                            return;
-                        }
-                        
                         // Tooltip 내용 구성 (마우스 오버 시 표시)
                         var tooltipContent = '<div style="font-weight: bold; margin-bottom: 3px;">' + 
                             (location.FCLTY_NM || '자전거 대여소') + '</div>';
