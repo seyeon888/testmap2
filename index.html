@@ -40,6 +40,18 @@
                 <div class="district-header">구별 필터</div>
                 <div id="district-filters" class="district-filters"></div>
             </div>
+            <div class="option-group">
+                <div class="district-header">경로 찾기</div>
+                <div id="route-controls" class="route-controls">
+                    <div class="route-info">
+                        <div id="route-start-info" class="route-location-info">출발지: 미설정</div>
+                        <div id="route-end-info" class="route-location-info">도착지: 미설정</div>
+                    </div>
+                    <button id="calculate-route-btn" class="route-calculate-btn" disabled>경로 계산</button>
+                    <button id="clear-route-btn" class="route-clear-btn">경로 초기화</button>
+                    <div id="route-result" class="route-result"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -259,6 +271,11 @@
         var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
         var allMarkers = []; // 모든 마커 저장 (필터링용)
         var markersByDistrict = {}; // 구별 마커 저장
+        var routeLayer = null; // 경로 표시 레이어
+        var startMarker = null; // 출발지 마커
+        var endMarker = null; // 도착지 마커
+        var startLocation = null; // 출발지 좌표
+        var endLocation = null; // 도착지 좌표
 
         // 마스크용 커스텀 pane (타일 위, 경계선 아래)
         map.createPane('maskPane');
@@ -690,13 +707,22 @@
                                 location.ADDR_ENG_NM + '</div>';
                         }
                         
+                        // 경로 선택 버튼 추가
+                        popupContent += '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">';
+                        popupContent += '<button class="route-btn route-start-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
+                            (location.FCLTY_NM || '자전거 대여소') + '">출발지로 설정</button>';
+                        popupContent += '<button class="route-btn route-end-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
+                            (location.FCLTY_NM || '자전거 대여소') + '">도착지로 설정</button>';
+                        popupContent += '</div>';
+                        
                         popupContent += '</div>';
                         
                         // 마커 생성 (아직 지도에 추가하지 않음)
                         var district = location.SIGNGU_NM || '기타';
                         var marker = L.marker([lat, lng], { 
                             icon: bikeMarkerIcon,
-                            district: district
+                            district: district,
+                            locationData: location // 위치 데이터 저장
                         })
                             .bindTooltip(tooltipContent, {
                                 permanent: false,
@@ -707,6 +733,36 @@
                             .bindPopup(popupContent, {
                                 maxWidth: 300
                             });
+                        
+                        // 팝업이 열린 후 버튼 이벤트 리스너 추가
+                        marker.on('popupopen', function() {
+                            var popup = this.getPopup();
+                            var popupElement = popup.getElement();
+                            
+                            // 출발지 버튼
+                            var startBtn = popupElement.querySelector('.route-start-btn');
+                            if (startBtn) {
+                                // 기존 이벤트 리스너 제거 후 추가 (중복 방지)
+                                var newStartBtn = startBtn.cloneNode(true);
+                                startBtn.parentNode.replaceChild(newStartBtn, startBtn);
+                                newStartBtn.addEventListener('click', function() {
+                                    setStartLocation(lat, lng, this.dataset.name);
+                                    marker.closePopup();
+                                });
+                            }
+                            
+                            // 도착지 버튼
+                            var endBtn = popupElement.querySelector('.route-end-btn');
+                            if (endBtn) {
+                                // 기존 이벤트 리스너 제거 후 추가 (중복 방지)
+                                var newEndBtn = endBtn.cloneNode(true);
+                                endBtn.parentNode.replaceChild(newEndBtn, endBtn);
+                                newEndBtn.addEventListener('click', function() {
+                                    setEndLocation(lat, lng, this.dataset.name);
+                                    marker.closePopup();
+                                });
+                            }
+                        });
                         
                         markers.push(marker);
                         
@@ -974,6 +1030,190 @@
             
             // 헤더에 grab 커서 표시
             panelHeader.style.cursor = 'grab';
+            
+            // 경로 찾기 기능 초기화
+            initRouteControls();
+        }
+        
+        // 경로 찾기 기능 초기화
+        function initRouteControls() {
+            // 경로 계산 버튼
+            var calculateBtn = document.getElementById('calculate-route-btn');
+            if (calculateBtn) {
+                calculateBtn.addEventListener('click', function() {
+                    if (startLocation && endLocation) {
+                        calculateRoute(startLocation, endLocation);
+                    }
+                });
+            }
+            
+            // 경로 초기화 버튼
+            var clearBtn = document.getElementById('clear-route-btn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    clearRoute();
+                });
+            }
+        }
+        
+        // 출발지 설정
+        function setStartLocation(lat, lng, name) {
+            startLocation = { lat: lat, lng: lng, name: name };
+            updateRouteInfo();
+            
+            // 출발지 마커 표시
+            if (startMarker) {
+                map.removeLayer(startMarker);
+            }
+            startMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'route-marker route-start-marker',
+                    html: '<div class="route-marker-inner">출발</div>',
+                    iconSize: [60, 30],
+                    iconAnchor: [30, 15]
+                })
+            }).addTo(map);
+        }
+        
+        // 도착지 설정
+        function setEndLocation(lat, lng, name) {
+            endLocation = { lat: lat, lng: lng, name: name };
+            updateRouteInfo();
+            
+            // 도착지 마커 표시
+            if (endMarker) {
+                map.removeLayer(endMarker);
+            }
+            endMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'route-marker route-end-marker',
+                    html: '<div class="route-marker-inner">도착</div>',
+                    iconSize: [60, 30],
+                    iconAnchor: [30, 15]
+                })
+            }).addTo(map);
+        }
+        
+        // 경로 정보 업데이트
+        function updateRouteInfo() {
+            var startInfo = document.getElementById('route-start-info');
+            var endInfo = document.getElementById('route-end-info');
+            var calculateBtn = document.getElementById('calculate-route-btn');
+            
+            if (startInfo) {
+                startInfo.textContent = '출발지: ' + (startLocation ? startLocation.name : '미설정');
+            }
+            if (endInfo) {
+                endInfo.textContent = '도착지: ' + (endLocation ? endLocation.name : '미설정');
+            }
+            if (calculateBtn) {
+                calculateBtn.disabled = !(startLocation && endLocation);
+            }
+        }
+        
+        // 경로 계산 (OSRM API 사용)
+        function calculateRoute(start, end) {
+            var resultDiv = document.getElementById('route-result');
+            if (resultDiv) {
+                resultDiv.innerHTML = '<div style="color: #666; font-size: 12px;">경로 계산 중...</div>';
+            }
+            
+            // OSRM API 엔드포인트 (자전거 경로)
+            var osrmUrl = 'https://router.project-osrm.org/route/v1/cycling/' + 
+                start.lng + ',' + start.lat + ';' + end.lng + ',' + end.lat + 
+                '?overview=full&geometries=geojson';
+            
+            fetch(osrmUrl)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('경로를 찾을 수 없습니다.');
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                        var route = data.routes[0];
+                        var geometry = route.geometry;
+                        
+                        // 경로 표시
+                        displayRoute(geometry, route);
+                        
+                        // 경로 정보 표시
+                        var distance = (route.distance / 1000).toFixed(2); // km
+                        var duration = Math.round(route.duration / 60); // 분
+                        
+                        if (resultDiv) {
+                            resultDiv.innerHTML = '<div style="margin-top: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px; font-size: 12px;">' +
+                                '<div><strong>거리:</strong> ' + distance + ' km</div>' +
+                                '<div><strong>예상 시간:</strong> ' + duration + ' 분</div>' +
+                                '</div>';
+                        }
+                    } else {
+                        throw new Error('경로를 찾을 수 없습니다.');
+                    }
+                })
+                .catch(function(error) {
+                    console.error('경로 계산 오류:', error);
+                    if (resultDiv) {
+                        resultDiv.innerHTML = '<div style="color: #d32f2f; font-size: 12px; margin-top: 8px;">경로를 찾을 수 없습니다.</div>';
+                    }
+                });
+        }
+        
+        // 경로 표시
+        function displayRoute(geometry, route) {
+            // 기존 경로 제거
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+            
+            // GeoJSON 형식의 좌표를 Leaflet 형식으로 변환
+            var latlngs = geometry.coordinates.map(function(coord) {
+                return [coord[1], coord[0]]; // [lat, lng]
+            });
+            
+            // 경로 polyline 생성
+            routeLayer = L.polyline(latlngs, {
+                color: '#4CAF50',
+                weight: 5,
+                opacity: 0.8,
+                smoothFactor: 1
+            }).addTo(map);
+            
+            // 경로에 맞게 지도 범위 조정
+            var bounds = routeLayer.getBounds();
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+        
+        // 경로 초기화
+        function clearRoute() {
+            // 경로 레이어 제거
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+                routeLayer = null;
+            }
+            
+            // 마커 제거
+            if (startMarker) {
+                map.removeLayer(startMarker);
+                startMarker = null;
+            }
+            if (endMarker) {
+                map.removeLayer(endMarker);
+                endMarker = null;
+            }
+            
+            // 위치 초기화
+            startLocation = null;
+            endLocation = null;
+            
+            // 정보 업데이트
+            updateRouteInfo();
+            
+            var resultDiv = document.getElementById('route-result');
+            if (resultDiv) {
+                resultDiv.innerHTML = '';
+            }
         }
         
         // 마커 업데이트 (필터링)
