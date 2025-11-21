@@ -118,3 +118,183 @@ body {
     transform: scale(1.05);
 }
 
+/* 옵션 패널 스타일 */
+#options-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 280px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    max-height: calc(100vh - 40px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#options-panel.collapsed {
+    width: 60px;
+}
+
+.options-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 18px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.options-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    transition: background 0.2s;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.options-content {
+    padding: 15px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.option-group {
+    margin-bottom: 20px;
+}
+
+.option-group:last-child {
+    margin-bottom: 0;
+}
+
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-switch input[type="checkbox"] {
+    display: none;
+}
+
+.slider {
+    position: relative;
+    width: 48px;
+    height: 24px;
+    background: #ccc;
+    border-radius: 24px;
+    transition: background 0.3s;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.slider::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input[type="checkbox"]:checked + .slider {
+    background: #667eea;
+}
+
+.toggle-switch input[type="checkbox"]:checked + .slider::before {
+    transform: translateX(24px);
+}
+
+.toggle-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.district-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.district-filters {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.district-filters::-webkit-scrollbar {
+    width: 6px;
+}
+
+.district-filters::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.district-filters::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.district-filters::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.district-checkbox {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    transition: color 0.2s;
+}
+
+.district-checkbox:hover {
+    color: #667eea;
+}
+
+.district-checkbox input[type="checkbox"] {
+    margin-right: 10px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
+#options-panel.collapsed .options-content {
+    display: none;
+}
+
+#options-panel.collapsed .options-header h3 {
+    display: none;
+}
+
