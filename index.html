@@ -237,6 +237,11 @@
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
         var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
 
+        // 마스크용 커스텀 pane (타일 위, 경계선 아래)
+        map.createPane('maskPane');
+        map.getPane('maskPane').style.zIndex = 300;
+        map.getPane('maskPane').style.pointerEvents = 'none';
+
         // 서울 시군구 이름 목록
         var seoulDistricts = [
             '강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구',
@@ -461,11 +466,12 @@
                 seoulMaskLayer = null;
             }
 
+            var padding = 5;
             var outer = [
-                [bounds.getNorthEast().lat + 1, bounds.getSouthWest().lng - 1],
-                [bounds.getNorthEast().lat + 1, bounds.getNorthEast().lng + 1],
-                [bounds.getSouthWest().lat - 1, bounds.getNorthEast().lng + 1],
-                [bounds.getSouthWest().lat - 1, bounds.getSouthWest().lng - 1]
+                [bounds.getNorthEast().lat + padding, bounds.getSouthWest().lng - padding],
+                [bounds.getNorthEast().lat + padding, bounds.getNorthEast().lng + padding],
+                [bounds.getSouthWest().lat - padding, bounds.getNorthEast().lng + padding],
+                [bounds.getSouthWest().lat - padding, bounds.getSouthWest().lng - padding]
             ];
 
             var rings = extractPolygonRings(polygonFeature);
@@ -479,7 +485,7 @@
                 fillColor: '#f2f2f2',
                 fillOpacity: 1,
                 interactive: false,
-                pane: 'overlayPane'
+                pane: 'maskPane'
             }).addTo(map);
         }
 
