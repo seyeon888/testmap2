@@ -230,6 +230,7 @@
         // 마커 클러스터 그룹 변수
         var markerClusterGroup = null;
         var seoulBoundaryLayer = null;
+        var seoulBoundaryPolygon = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
         var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
 
@@ -287,6 +288,9 @@
                     var filteredGeojson = filterGeojsonByDistricts(geojson, normalizedAllowedDistricts);
                     var aggregatedGeojson = aggregateDistrictBoundaries(filteredGeojson, normalizedAllowedDistricts);
                     var boundarySource = (aggregatedGeojson && aggregatedGeojson.features && aggregatedGeojson.features.length) ? aggregatedGeojson : filteredGeojson;
+
+                    var mergedBoundary = mergeFeaturesForMask(boundarySource);
+                    seoulBoundaryPolygon = (mergedBoundary && mergedBoundary.features && mergedBoundary.features[0]) ? mergedBoundary.features[0] : null;
 
                     seoulBoundaryLayer = L.geoJSON(boundarySource, {
                         style: {
@@ -388,6 +392,31 @@
             };
         }
 
+        function mergeFeaturesForMask(geojson) {
+            if (!geojson || !geojson.features || !geojson.features.length) {
+                return null;
+            }
+
+            if (typeof turf === 'undefined' || !turf.union) {
+                console.warn('Turf.js가 로드되지 않아 경계 병합을 건너뜁니다.');
+                return geojson;
+            }
+
+            try {
+                var merged = geojson.features[0];
+                for (var i = 1; i < geojson.features.length; i++) {
+                    merged = turf.union(merged, geojson.features[i]);
+                }
+                return {
+                    type: 'FeatureCollection',
+                    features: [merged]
+                };
+            } catch (error) {
+                console.warn('서울 경계를 병합하는 중 오류가 발생했습니다. 원본 데이터를 사용합니다.', error);
+                return geojson;
+            }
+        }
+
         function extractDistrictName(feature, normalizedWhitelist) {
             if (!feature || !feature.properties) {
                 return null;
@@ -431,6 +460,18 @@
                 lat < -90 || lat > 90 || lng < -180 || lng > 180) {
                 return false;
             }
+
+            if (seoulBoundaryPolygon && typeof turf !== 'undefined' && turf.booleanPointInPolygon) {
+                var point = turf.point([lng, lat]);
+                try {
+                    if (turf.booleanPointInPolygon(point, seoulBoundaryPolygon)) {
+                        return true;
+                    }
+                } catch (error) {
+                    console.warn('경계 다각형 검사 중 오류:', error);
+                }
+            }
+
             if (location.CTPRVN_NM && location.CTPRVN_NM.indexOf('서울') !== -1) {
                 return true;
             }
