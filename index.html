@@ -837,7 +837,7 @@
                 seoulDistricts.forEach(function(district) {
                     var label = document.createElement('label');
                     label.className = 'district-checkbox';
-                    label.innerHTML = '<input type="checkbox" class="district-filter" data-district="' + district + '" checked> ' + district;
+                    label.innerHTML = '<input type="checkbox" class="district-filter" data-district="' + district + '"> ' + district;
                     districtFilters.appendChild(label);
                 });
                 
@@ -898,15 +898,21 @@
             // 모든 마커 제거
             markerClusterGroup.clearLayers();
             
-            if (showAll && visibleDistricts.length > 0) {
-                var markersToShow = [];
-                allMarkers.forEach(function(marker) {
-                    var district = marker.options.district;
-                    if (visibleDistricts.indexOf(district) !== -1) {
-                        markersToShow.push(marker);
-                    }
-                });
-                markerClusterGroup.addLayers(markersToShow);
+            if (showAll) {
+                if (visibleDistricts.length > 0) {
+                    // 선택된 구의 마커만 표시
+                    var markersToShow = [];
+                    allMarkers.forEach(function(marker) {
+                        var district = marker.options.district;
+                        if (visibleDistricts.indexOf(district) !== -1) {
+                            markersToShow.push(marker);
+                        }
+                    });
+                    markerClusterGroup.addLayers(markersToShow);
+                } else {
+                    // 아무 구도 선택되지 않았으면 모든 마커 표시
+                    markerClusterGroup.addLayers(allMarkers);
+                }
             } else if (!showAll) {
                 // 전체 마커 숨김
             }
