@@ -31,6 +31,10 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
             crossorigin=""></script>
     
+    <!-- Turf.js (GeoJSON 병합 및 단순화 용도) -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"
+            crossorigin="anonymous"></script>
+    
     <script>
         // Google Maps API 키 설정 (선택사항)
         // Google Maps를 사용하려면 아래 주석을 해제하고 YOUR_API_KEY를 실제 키로 변경하세요
@@ -290,7 +294,8 @@
                         map.fitBounds(boundaryBounds);
                     }
 
-                    applySeoulMask(geojson);
+                    var mergedBoundary = mergeFeaturesForMask(geojson);
+                    applySeoulMask(mergedBoundary || geojson);
                 })
                 .catch(function(error) {
                     console.error('서울 경계선을 로드하는 중 오류 발생:', error);
@@ -354,6 +359,31 @@
             });
 
             return rings;
+        }
+
+        function mergeFeaturesForMask(geojson) {
+            if (!geojson || !geojson.features || geojson.features.length === 0) {
+                return null;
+            }
+
+            if (typeof turf === 'undefined' || !turf.union) {
+                console.warn('Turf.js가 로드되지 않아 경계 병합을 건너뜁니다.');
+                return geojson;
+            }
+
+            try {
+                var merged = geojson.features[0];
+                for (var i = 1; i < geojson.features.length; i++) {
+                    merged = turf.union(merged, geojson.features[i]);
+                }
+                return {
+                    type: 'FeatureCollection',
+                    features: [merged]
+                };
+            } catch (error) {
+                console.warn('서울 경계를 병합하는 중 오류가 발생했습니다. 원본 데이터를 사용합니다.', error);
+                return geojson;
+            }
         }
 
         function loadMarkers() {
