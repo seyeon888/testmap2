@@ -225,6 +225,9 @@
         
         // 마커 클러스터 그룹 변수
         var markerClusterGroup = null;
+        var seoulBoundaryLayer = null;
+        var seoulMaskLayer = null;
+        var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
 
         // 서울 시군구 이름 목록
         var seoulDistricts = [
@@ -252,35 +255,108 @@
             minZoom: 10,
             maxZoom: 18
         }).addTo(map);
-
-        // 서울 외곽을 마스킹해 다른 지역을 흐리게 처리
-        var outerRing = [
-            [90, -180],
-            [90, 180],
-            [-90, 180],
-            [-90, -180]
-        ];
-        var seoulRing = [
-            [seoulBounds.getNorthEast().lat, seoulBounds.getSouthWest().lng],
-            [seoulBounds.getNorthEast().lat, seoulBounds.getNorthEast().lng],
-            [seoulBounds.getSouthWest().lat, seoulBounds.getNorthEast().lng],
-            [seoulBounds.getSouthWest().lat, seoulBounds.getSouthWest().lng]
-        ];
-        var maskPolygon = L.polygon([outerRing, seoulRing], {
-            color: '#000',
-            weight: 0,
-            fillColor: '#000',
-            fillOpacity: 0.6,
-            interactive: false
-        });
-        maskPolygon.addTo(map);
         
         // 지도가 로드된 후 데이터 로드
         map.whenReady(function() {
             console.log('지도 로드 완료');
+            loadSeoulBoundary();
             loadMarkers();
         });
         
+        function loadSeoulBoundary() {
+            fetch(seoulBoundaryGeoJsonUrl)
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('서울 경계 데이터를 불러오지 못했습니다: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(function(geojson) {
+                    if (seoulBoundaryLayer) {
+                        map.removeLayer(seoulBoundaryLayer);
+                        seoulBoundaryLayer = null;
+                    }
+                    seoulBoundaryLayer = L.geoJSON(geojson, {
+                        style: {
+                            color: '#ffb703',
+                            weight: 2,
+                            opacity: 0.9,
+                            fillColor: '#ffb703',
+                            fillOpacity: 0.15
+                        }
+                    }).addTo(map);
+
+                    var boundaryBounds = seoulBoundaryLayer.getBounds();
+                    if (boundaryBounds.isValid()) {
+                        map.fitBounds(boundaryBounds);
+                    }
+
+                    applySeoulMask(geojson);
+                })
+                .catch(function(error) {
+                    console.error('서울 경계선을 로드하는 중 오류 발생:', error);
+                });
+        }
+
+        function applySeoulMask(geojson) {
+            if (seoulMaskLayer) {
+                map.removeLayer(seoulMaskLayer);
+                seoulMaskLayer = null;
+            }
+
+            var seoulRings = extractSeoulRings(geojson);
+            if (!seoulRings.length) {
+                return;
+            }
+
+            var outerRing = [
+                [85, -180],
+                [85, 180],
+                [-85, 180],
+                [-85, -180]
+            ];
+
+            seoulMaskLayer = L.polygon([outerRing].concat(seoulRings), {
+                color: '#000',
+                weight: 0,
+                fillColor: '#000',
+                fillOpacity: 0.65,
+                interactive: false
+            }).addTo(map);
+        }
+
+        function extractSeoulRings(geojson) {
+            var rings = [];
+            if (!geojson || !geojson.features) {
+                return rings;
+            }
+
+            geojson.features.forEach(function(feature) {
+                var geometry = feature.geometry;
+                if (!geometry || !geometry.coordinates) {
+                    return;
+                }
+
+                if (geometry.type === 'Polygon') {
+                    geometry.coordinates.forEach(function(ring) {
+                        rings.push(ring.map(function(coord) {
+                            return [coord[1], coord[0]];
+                        }));
+                    });
+                } else if (geometry.type === 'MultiPolygon') {
+                    geometry.coordinates.forEach(function(polygon) {
+                        polygon.forEach(function(ring) {
+                            rings.push(ring.map(function(coord) {
+                                return [coord[1], coord[0]];
+                            }));
+                        });
+                    });
+                }
+            });
+
+            return rings;
+        }
+
         function loadMarkers() {
         
         // Google Maps API 키가 있는 경우 아래 주석을 해제하여 Google Maps 스타일을 사용할 수 있습니다
