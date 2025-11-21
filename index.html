@@ -224,13 +224,15 @@
             maxBoundsViscosity: 1.0,
             minZoom: 10,
             maxZoom: 40,
-            zoomControl: true
+            zoomControl: true,
+            preferCanvas: true
         }).fitBounds(seoulBounds);
         
         // 마커 클러스터 그룹 변수
         var markerClusterGroup = null;
         var seoulBoundaryLayer = null;
         var seoulBoundaryPolygon = null;
+        var baseTileLayer = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
         var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
 
@@ -251,19 +253,6 @@
             popupAnchor: [0, -36],
             tooltipAnchor: [0, -30]
         });
-
-        // Google Maps 스타일과 유사한 밝고 깔끔한 스타일의 타일 사용
-        // 제공된 스타일은 밝은 배경, 회색 도로, 파란색 물을 특징으로 하므로
-        // CartoDB Positron이 가장 유사한 스타일입니다
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap contributors © CARTO',
-            subdomains: 'abcd',
-            minZoom: 10,
-            maxZoom: 40,
-            bounds: seoulBounds,
-            noWrap: true,
-            keepBuffer: 1
-        }).addTo(map);
         
         // 지도가 로드된 후 데이터 로드
         map.whenReady(function() {
@@ -309,7 +298,10 @@
 
                     var boundaryBounds = seoulBoundaryLayer.getBounds();
                     if (boundaryBounds.isValid()) {
-                        map.fitBounds(boundaryBounds);
+                        var paddedBounds = boundaryBounds.pad(0.02);
+                        map.fitBounds(paddedBounds);
+                        map.setMaxBounds(paddedBounds);
+                        updateBaseTileLayer(paddedBounds);
                     }
 
                 })
@@ -457,6 +449,25 @@
             return String(name).replace(/\s+/g, '').replace(/[^가-힣A-Za-z0-9]/g, '');
         }
 
+        function updateBaseTileLayer(bounds) {
+            if (baseTileLayer) {
+                map.removeLayer(baseTileLayer);
+                baseTileLayer = null;
+            }
+            baseTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap contributors © CARTO',
+                subdomains: 'abcd',
+                minZoom: 10,
+                maxZoom: 40,
+                bounds: bounds,
+                noWrap: true,
+                keepBuffer: 1,
+                updateWhenIdle: true,
+                updateWhenZooming: false
+            });
+            baseTileLayer.addTo(map);
+        }
+
         function isLocationInSeoul(location) {
             if (!location) {
                 return false;
@@ -490,7 +501,7 @@
             }
             return seoulBounds.contains([lat, lng]);
         }
-
+        
         function loadMarkers() {
         
         // Google Maps API 키가 있는 경우 아래 주석을 해제하여 Google Maps 스타일을 사용할 수 있습니다
@@ -525,7 +536,7 @@
                 
                 var filteredData = data.filter(isLocationInSeoul);
                 console.log('서울 데이터 필터링:', filteredData.length, '개 항목');
-
+                
                 // 모든 마커를 저장할 배열
                 var markers = [];
                 var invalidCount = 0;
@@ -624,8 +635,8 @@
                 }
 
                 if (markers.length > 0) {
-                    markerClusterGroup = L.markerClusterGroup({
-                        showCoverageOnHover: false,
+                        markerClusterGroup = L.markerClusterGroup({
+                            showCoverageOnHover: false,
                         maxClusterRadius: 95,
                         spiderfyOnMaxZoom: false,
                         disableClusteringAtZoom: clusterOnlyMaxZoom + 1,
@@ -645,9 +656,9 @@
                                 iconAnchor: [24, 24]
                             });
                         }
-                    });
-                    markerClusterGroup.addLayers(markers);
-                    map.addLayer(markerClusterGroup);
+                        });
+                        markerClusterGroup.addLayers(markers);
+                        map.addLayer(markerClusterGroup);
 
                     // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
