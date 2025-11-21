@@ -649,42 +649,31 @@
                     markerClusterGroup = null;
                 }
 
-                // 마커 개수에 따라 클러스터링 또는 개별 표시
                 if (markers.length > 0) {
-                    if (markers.length >= 20) {
-                        // 20개 이상: 클러스터링 활성화
-                        console.log('마커 클러스터링 활성화 (20개 이상)');
-                        markerClusterGroup = L.markerClusterGroup({
-                            showCoverageOnHover: false,
-                            maxClusterRadius: 85,
-                            spiderfyOnMaxZoom: false,
-                            disableClusteringAtZoom: 15,
-                            removeOutsideVisibleBounds: true,
-                            iconCreateFunction: function(cluster) {
-                                var count = cluster.getChildCount();
-                                var sizeClass = 'cluster-small';
-                                if (count >= 50) {
-                                    sizeClass = 'cluster-large';
-                                } else if (count >= 20) {
-                                    sizeClass = 'cluster-medium';
-                                }
-                                return L.divIcon({
-                                    html: '<div class="bike-cluster ' + sizeClass + '"><span>' + count + '</span></div>',
-                                    className: '',
-                                    iconSize: [48, 48],
-                                    iconAnchor: [24, 24]
-                                });
+                    markerClusterGroup = L.markerClusterGroup({
+                        showCoverageOnHover: false,
+                        maxClusterRadius: 95,
+                        spiderfyOnMaxZoom: false,
+                        disableClusteringAtZoom: 15,
+                        removeOutsideVisibleBounds: true,
+                        iconCreateFunction: function(cluster) {
+                            var count = cluster.getChildCount();
+                            var sizeClass = 'cluster-small';
+                            if (count >= 50) {
+                                sizeClass = 'cluster-large';
+                            } else if (count >= 20) {
+                                sizeClass = 'cluster-medium';
                             }
-                        });
-                        markerClusterGroup.addLayers(markers);
-                        map.addLayer(markerClusterGroup);
-                    } else {
-                        // 20개 미만: 개별 마커 표시
-                        console.log('개별 마커 표시 (20개 미만)');
-                        markers.forEach(function(marker) {
-                            marker.addTo(map);
-                        });
-                    }
+                            return L.divIcon({
+                                html: '<div class="bike-cluster ' + sizeClass + '"><span>' + count + '</span></div>',
+                                className: '',
+                                iconSize: [48, 48],
+                                iconAnchor: [24, 24]
+                            });
+                        }
+                    });
+                    markerClusterGroup.addLayers(markers);
+                    map.addLayer(markerClusterGroup);
 
                     // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
