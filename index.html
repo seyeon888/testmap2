@@ -218,6 +218,8 @@
         var map = L.map('map', {
             maxBounds: seoulBounds,
             maxBoundsViscosity: 1.0,
+            minZoom: 10,
+            maxZoom: 18,
             zoomControl: true
         }).fitBounds(seoulBounds);
         
@@ -247,8 +249,31 @@
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '© OpenStreetMap contributors © CARTO',
             subdomains: 'abcd',
-            maxZoom: 19
+            minZoom: 10,
+            maxZoom: 18
         }).addTo(map);
+
+        // 서울 외곽을 마스킹해 다른 지역을 흐리게 처리
+        var outerRing = [
+            [90, -180],
+            [90, 180],
+            [-90, 180],
+            [-90, -180]
+        ];
+        var seoulRing = [
+            [seoulBounds.getNorthEast().lat, seoulBounds.getSouthWest().lng],
+            [seoulBounds.getNorthEast().lat, seoulBounds.getNorthEast().lng],
+            [seoulBounds.getSouthWest().lat, seoulBounds.getNorthEast().lng],
+            [seoulBounds.getSouthWest().lat, seoulBounds.getSouthWest().lng]
+        ];
+        var maskPolygon = L.polygon([outerRing, seoulRing], {
+            color: '#000',
+            weight: 0,
+            fillColor: '#000',
+            fillOpacity: 0.6,
+            interactive: false
+        });
+        maskPolygon.addTo(map);
         
         // 지도가 로드된 후 데이터 로드
         map.whenReady(function() {
