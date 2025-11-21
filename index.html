@@ -214,6 +214,16 @@
         // 마커 클러스터 그룹 변수
         var markerClusterGroup = null;
 
+        // 맞춤형 마커 아이콘 (자전거 핀 형태)
+        var bikeMarkerIcon = L.divIcon({
+            className: '',
+            html: '<div class="bike-marker"><div class="bike-marker__inner"></div></div>',
+            iconSize: [34, 44],
+            iconAnchor: [17, 42],
+            popupAnchor: [0, -36],
+            tooltipAnchor: [0, -30]
+        });
+
         // Google Maps 스타일과 유사한 밝고 깔끔한 스타일의 타일 사용
         // 제공된 스타일은 밝은 배경, 회색 도로, 파란색 물을 특징으로 하므로
         // CartoDB Positron이 가장 유사한 스타일입니다
@@ -329,7 +339,7 @@
                         popupContent += '</div>';
                         
                         // 마커 생성 (아직 지도에 추가하지 않음)
-                        var marker = L.marker([lat, lng])
+                        var marker = L.marker([lat, lng], { icon: bikeMarkerIcon })
                             .bindTooltip(tooltipContent, {
                                 permanent: false,
                                 direction: 'top',
