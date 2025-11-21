@@ -329,3 +329,121 @@ body {
     display: none !important;
 }
 
+/* 경로 찾기 스타일 */
+.route-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    margin: 4px 0;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.route-btn:hover {
+    background: #45a049;
+}
+
+.route-btn:active {
+    background: #3d8b40;
+}
+
+.route-controls {
+    margin-top: 8px;
+}
+
+.route-info {
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.route-location-info {
+    margin: 4px 0;
+    color: #333;
+}
+
+.route-location-info:first-child {
+    margin-top: 0;
+}
+
+.route-location-info:last-child {
+    margin-bottom: 0;
+}
+
+.route-calculate-btn,
+.route-clear-btn {
+    width: 100%;
+    padding: 10px;
+    margin: 4px 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.route-calculate-btn {
+    background: #667eea;
+    color: white;
+}
+
+.route-calculate-btn:hover:not(:disabled) {
+    background: #5568d3;
+}
+
+.route-calculate-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.route-clear-btn {
+    background: #f44336;
+    color: white;
+}
+
+.route-clear-btn:hover {
+    background: #da190b;
+}
+
+.route-result {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+/* 경로 마커 스타일 */
+.route-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.route-start-marker .route-marker-inner {
+    background: #4CAF50;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+
+.route-end-marker .route-marker-inner {
+    background: #f44336;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+
