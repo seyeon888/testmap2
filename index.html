@@ -417,6 +417,8 @@
             document.head.appendChild(mutantScript);
         }
 
+        */
+
         function filterGeojsonByDistricts(geojson, normalizedWhitelist) {
             if (!geojson || !geojson.features || !geojson.features.length) {
                 return geojson;
@@ -529,7 +531,6 @@
             }
             return String(name).replace(/\s+/g, '').replace(/[^가-힣A-Za-z0-9]/g, '');
         }
-        */
 
             // data.json 파일 로드 (CORS 문제 해결: fetch와 XMLHttpRequest 모두 시도)
             function processData(data) {
