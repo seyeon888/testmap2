@@ -662,61 +662,6 @@
                             tooltipContent += '<div style="font-size: 12px; color: #ddd;">' + location.SIGNGU_NM + '</div>';
                         }
                         
-                        // Popup 내용 구성 (클릭 시 표시 - 더 자세한 정보)
-                        var popupContent = '<div class="info">';
-                        popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 8px;">' + 
-                            (location.FCLTY_NM || '자전거 대여소') + '</strong>';
-                        
-                        if (location.LCLAS_NM) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시설분류:</span> ' + 
-                                location.LCLAS_NM + '</div>';
-                        }
-                        
-                        if (location.FCLTY_ROAD_NM_ADDR) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">주소:</span><br>' + 
-                                location.FCLTY_ROAD_NM_ADDR + '</div>';
-                        }
-                        
-                        if (location.SIGNGU_NM) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시군구:</span> ' + 
-                                location.SIGNGU_NM + '</div>';
-                        }
-                        
-                        if (location.LEGALDONG_NM) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">법정동:</span> ' + 
-                                location.LEGALDONG_NM + '</div>';
-                        }
-                        
-                        if (location.BULD_NM) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">건물명:</span> ' + 
-                                location.BULD_NM + '</div>';
-                        }
-                        
-                        if (location.CTPRVN_NM) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시도:</span> ' + 
-                                location.CTPRVN_NM + '</div>';
-                        }
-                        
-                        if (location.MLSFC_NM) {
-                            popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">상세분류:</span> ' + 
-                                location.MLSFC_NM + '</div>';
-                        }
-                        
-                        if (location.ADDR_ENG_NM) {
-                            popupContent += '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 12px; color: #888;">' + 
-                                location.ADDR_ENG_NM + '</div>';
-                        }
-                        
-                        // 경로 선택 버튼 추가
-                        popupContent += '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">';
-                        popupContent += '<button class="route-btn route-start-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
-                            (location.FCLTY_NM || '자전거 대여소') + '">출발지로 설정</button>';
-                        popupContent += '<button class="route-btn route-end-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
-                            (location.FCLTY_NM || '자전거 대여소') + '">도착지로 설정</button>';
-                        popupContent += '</div>';
-                        
-                        popupContent += '</div>';
-                        
                         // 마커 생성 (아직 지도에 추가하지 않음)
                         var district = location.SIGNGU_NM || '기타';
                         var marker = L.marker([lat, lng], { 
@@ -729,38 +674,99 @@
                                 direction: 'top',
                                 className: 'custom-tooltip',
                                 offset: [0, -10]
-                            })
-                            .bindPopup(popupContent, {
-                                maxWidth: 300
                             });
+                        
+                        // Popup 내용을 함수로 생성 (팝업이 열릴 때마다 최신 내용 생성)
+                        marker.bindPopup(function() {
+                            var popupContent = '<div class="info">';
+                            popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 8px;">' + 
+                                (location.FCLTY_NM || '자전거 대여소') + '</strong>';
+                            
+                            if (location.LCLAS_NM) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시설분류:</span> ' + 
+                                    location.LCLAS_NM + '</div>';
+                            }
+                            
+                            if (location.FCLTY_ROAD_NM_ADDR) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">주소:</span><br>' + 
+                                    location.FCLTY_ROAD_NM_ADDR + '</div>';
+                            }
+                            
+                            if (location.SIGNGU_NM) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시군구:</span> ' + 
+                                    location.SIGNGU_NM + '</div>';
+                            }
+                            
+                            if (location.LEGALDONG_NM) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">법정동:</span> ' + 
+                                    location.LEGALDONG_NM + '</div>';
+                            }
+                            
+                            if (location.BULD_NM) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">건물명:</span> ' + 
+                                    location.BULD_NM + '</div>';
+                            }
+                            
+                            if (location.CTPRVN_NM) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시도:</span> ' + 
+                                    location.CTPRVN_NM + '</div>';
+                            }
+                            
+                            if (location.MLSFC_NM) {
+                                popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">상세분류:</span> ' + 
+                                    location.MLSFC_NM + '</div>';
+                            }
+                            
+                            if (location.ADDR_ENG_NM) {
+                                popupContent += '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 12px; color: #888;">' + 
+                                    location.ADDR_ENG_NM + '</div>';
+                            }
+                            
+                            // 경로 선택 버튼 추가
+                            popupContent += '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">';
+                            popupContent += '<button class="route-btn route-start-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
+                                (location.FCLTY_NM || '자전거 대여소').replace(/'/g, "&#39;") + '">출발지로 설정</button>';
+                            popupContent += '<button class="route-btn route-end-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
+                                (location.FCLTY_NM || '자전거 대여소').replace(/'/g, "&#39;") + '">도착지로 설정</button>';
+                            popupContent += '</div>';
+                            
+                            popupContent += '</div>';
+                            return popupContent;
+                        }, {
+                            maxWidth: 300
+                        });
                         
                         // 팝업이 열린 후 버튼 이벤트 리스너 추가
                         marker.on('popupopen', function() {
                             var popup = this.getPopup();
                             var popupElement = popup.getElement();
                             
+                            if (!popupElement) return;
+                            
                             // 출발지 버튼
                             var startBtn = popupElement.querySelector('.route-start-btn');
                             if (startBtn) {
-                                // 기존 이벤트 리스너 제거 후 추가 (중복 방지)
-                                var newStartBtn = startBtn.cloneNode(true);
-                                startBtn.parentNode.replaceChild(newStartBtn, startBtn);
-                                newStartBtn.addEventListener('click', function() {
-                                    setStartLocation(lat, lng, this.dataset.name);
+                                startBtn.onclick = function(e) {
+                                    e.stopPropagation();
+                                    var btnLat = parseFloat(this.dataset.lat);
+                                    var btnLng = parseFloat(this.dataset.lng);
+                                    var btnName = this.dataset.name;
+                                    setStartLocation(btnLat, btnLng, btnName);
                                     marker.closePopup();
-                                });
+                                };
                             }
                             
                             // 도착지 버튼
                             var endBtn = popupElement.querySelector('.route-end-btn');
                             if (endBtn) {
-                                // 기존 이벤트 리스너 제거 후 추가 (중복 방지)
-                                var newEndBtn = endBtn.cloneNode(true);
-                                endBtn.parentNode.replaceChild(newEndBtn, endBtn);
-                                newEndBtn.addEventListener('click', function() {
-                                    setEndLocation(lat, lng, this.dataset.name);
+                                endBtn.onclick = function(e) {
+                                    e.stopPropagation();
+                                    var btnLat = parseFloat(this.dataset.lat);
+                                    var btnLng = parseFloat(this.dataset.lng);
+                                    var btnName = this.dataset.name;
+                                    setEndLocation(btnLat, btnLng, btnName);
                                     marker.closePopup();
-                                });
+                                };
                             }
                         });
                         
