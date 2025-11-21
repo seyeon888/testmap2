@@ -239,6 +239,7 @@
             '도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구',
             '양천구','영등포구','용산구','은평구','종로구','중구','중랑구'
         ];
+        var normalizedAllowedDistricts = seoulDistricts.map(normalizeDistrictName);
 
         // 맞춤형 마커 아이콘 (자전거 핀 형태)
         var bikeMarkerIcon = L.divIcon({
@@ -280,7 +281,11 @@
                         map.removeLayer(seoulBoundaryLayer);
                         seoulBoundaryLayer = null;
                     }
-                    seoulBoundaryLayer = L.geoJSON(geojson, {
+                    var filteredGeojson = filterGeojsonByDistricts(geojson, normalizedAllowedDistricts);
+                    var aggregatedGeojson = aggregateDistrictBoundaries(filteredGeojson, normalizedAllowedDistricts);
+                    var boundarySource = (aggregatedGeojson && aggregatedGeojson.features && aggregatedGeojson.features.length) ? aggregatedGeojson : filteredGeojson;
+
+                    seoulBoundaryLayer = L.geoJSON(boundarySource, {
                         style: {
                             color: '#ffb703',
                             weight: 2,
@@ -294,8 +299,8 @@
                         map.fitBounds(boundaryBounds);
                     }
 
-                    var mergedBoundary = mergeFeaturesForMask(geojson);
-                    applySeoulMask(mergedBoundary || geojson);
+                    var mergedBoundary = mergeFeaturesForMask(boundarySource);
+                    applySeoulMask(mergedBoundary || boundarySource);
                 })
                 .catch(function(error) {
                     console.error('서울 경계선을 로드하는 중 오류 발생:', error);
@@ -410,6 +415,119 @@
                 };
             };
             document.head.appendChild(mutantScript);
+        }
+
+        function filterGeojsonByDistricts(geojson, normalizedWhitelist) {
+            if (!geojson || !geojson.features || !geojson.features.length) {
+                return geojson;
+            }
+
+            var filtered = geojson.features.filter(function(feature) {
+                var props = feature.properties || {};
+                var candidates = [
+                    props.sggnm, props.SGGNM,
+                    props.name, props.NAME,
+                    props.adm_nm, props.ADM_NM
+                ];
+                return candidates.some(function(value) {
+                    if (!value || typeof value !== 'string') {
+                        return false;
+                    }
+                    var normalized = normalizeDistrictName(value);
+                    return normalizedWhitelist.some(function(allowed) {
+                        return normalized.indexOf(allowed) !== -1;
+                    });
+                });
+            });
+
+            if (!filtered.length) {
+                return geojson;
+            }
+
+            return {
+                type: 'FeatureCollection',
+                features: filtered
+            };
+        }
+
+        function aggregateDistrictBoundaries(geojson, normalizedWhitelist) {
+            if (!geojson || !geojson.features || !geojson.features.length) {
+                return geojson;
+            }
+
+            if (typeof turf === 'undefined' || !turf.union) {
+                console.warn('Turf.js가 없어 구 경계 병합을 건너뜁니다.');
+                return geojson;
+            }
+
+            var groups = {};
+            geojson.features.forEach(function(feature) {
+                var districtName = extractDistrictName(feature, normalizedWhitelist);
+                if (!districtName) {
+                    return;
+                }
+                if (!groups[districtName]) {
+                    groups[districtName] = feature;
+                } else {
+                    try {
+                        groups[districtName] = turf.union(groups[districtName], feature);
+                    } catch (error) {
+                        console.warn('구 경계 병합 중 오류 발생:', error);
+                    }
+                }
+            });
+
+            var aggregated = Object.keys(groups).map(function(name) {
+                var mergedFeature = groups[name];
+                if (!mergedFeature || !mergedFeature.geometry) {
+                    return null;
+                }
+                mergedFeature.properties = mergedFeature.properties || {};
+                mergedFeature.properties.districtName = name;
+                return mergedFeature;
+            }).filter(Boolean);
+
+            if (!aggregated.length) {
+                return geojson;
+            }
+
+            return {
+                type: 'FeatureCollection',
+                features: aggregated
+            };
+        }
+
+        function extractDistrictName(feature, normalizedWhitelist) {
+            if (!feature || !feature.properties) {
+                return null;
+            }
+            var candidates = [
+                feature.properties.sggnm, feature.properties.SGGNM,
+                feature.properties.name, feature.properties.NAME,
+                feature.properties.adm_nm, feature.properties.ADM_NM
+            ];
+
+            for (var i = 0; i < candidates.length; i++) {
+                var value = candidates[i];
+                if (!value || typeof value !== 'string') {
+                    continue;
+                }
+                var normalized = normalizeDistrictName(value);
+                for (var j = 0; j < normalizedWhitelist.length; j++) {
+                    var allowed = normalizedWhitelist[j];
+                    if (normalized.indexOf(allowed) !== -1) {
+                        return seoulDistricts[j];
+                    }
+                }
+            }
+            return null;
+        }
+
+        function normalizeDistrictName(name) {
+            if (!name) {
+                return '';
+            }
+            return String(name).replace(/\s+/g, '').replace(/[^가-힣A-Za-z0-9]/g, '');
         }
         */
 
