@@ -79,3 +79,40 @@ body {
     box-shadow: 0 -4px 0 rgba(255, 255, 255, 0.25);
 }
 
+.bike-cluster {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(32, 32, 32, 0.9);
+    color: white;
+    font-weight: bold;
+    font-size: 15px;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    transition: transform 0.2s ease;
+}
+
+.bike-cluster span {
+    transform: translateY(1px);
+}
+
+.bike-cluster.cluster-small {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
+.bike-cluster.cluster-medium {
+    background: linear-gradient(135deg, #fa709a, #fee140);
+}
+
+.bike-cluster.cluster-large {
+    background: linear-gradient(135deg, #f83600, #f9d423);
+    font-size: 16px;
+}
+
+.bike-cluster:hover {
+    transform: scale(1.05);
+}
+
