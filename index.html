@@ -208,11 +208,28 @@
             }
         ];
 
-        // 지도 초기화 (한국 중심)
-        var map = L.map('map').setView([36.5, 127.5], 7);
+        // 서울 경계 설정 (대략적인 남서/북동 모서리)
+        var seoulBounds = L.latLngBounds(
+            [37.413294, 126.734086],
+            [37.715133, 127.269311]
+        );
+
+        // 지도 초기화 (서울 중심, 서울 경계로 제한)
+        var map = L.map('map', {
+            maxBounds: seoulBounds,
+            maxBoundsViscosity: 1.0,
+            zoomControl: true
+        }).fitBounds(seoulBounds);
         
         // 마커 클러스터 그룹 변수
         var markerClusterGroup = null;
+
+        // 서울 시군구 이름 목록
+        var seoulDistricts = [
+            '강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구',
+            '도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구',
+            '양천구','영등포구','용산구','은평구','종로구','중구','중랑구'
+        ];
 
         // 맞춤형 마커 아이콘 (자전거 핀 형태)
         var bikeMarkerIcon = L.divIcon({
@@ -283,6 +300,21 @@
                     // 유효한 좌표인지 확인 (0이 아니고, 숫자이고, 유효한 범위 내)
                     if (lat && lng && !isNaN(lat) && !isNaN(lng) && 
                         lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+
+                        var isSeoul = false;
+                        if (location.CTPRVN_NM && location.CTPRVN_NM.indexOf('서울') !== -1) {
+                            isSeoul = true;
+                        } else if (location.FCLTY_ROAD_NM_ADDR && location.FCLTY_ROAD_NM_ADDR.indexOf('서울특별시') !== -1) {
+                            isSeoul = true;
+                        } else if (location.SIGNGU_NM && seoulDistricts.indexOf(location.SIGNGU_NM) !== -1) {
+                            isSeoul = true;
+                        } else if (seoulBounds.contains([lat, lng])) {
+                            isSeoul = true;
+                        }
+
+                        if (!isSeoul) {
+                            return;
+                        }
                         
                         // Tooltip 내용 구성 (마우스 오버 시 표시)
                         var tooltipContent = '<div style="font-weight: bold; margin-bottom: 3px;">' + 
