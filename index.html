@@ -24,14 +24,14 @@
 
     <!-- 옵션 패널 -->
     <div id="options-panel">
-        <div class="options-header">
+        <div class="options-header" id="panel-header">
             <h3>마커 옵션</h3>
             <button id="toggle-panel" class="toggle-btn">−</button>
         </div>
         <div class="options-content">
             <div class="option-group">
                 <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-all-markers" checked>
+                    <input type="checkbox" id="toggle-all-markers">
                     <span class="slider"></span>
                     <span class="toggle-label">전체 마커 표시</span>
                 </label>
@@ -755,11 +755,11 @@
                             });
                         }
                         });
-                        markerClusterGroup.addLayers(markers);
-                        map.addLayer(markerClusterGroup);
-                        
-                        // 전체 마커 배열 저장
+                        // 전체 마커 배열 저장 (아직 지도에 추가하지 않음)
                         allMarkers = markers.slice();
+                        
+                        // 클러스터 그룹을 지도에 추가 (마커는 나중에 updateMarkers에서 추가)
+                        map.addLayer(markerClusterGroup);
 
                     // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
@@ -769,6 +769,9 @@
                         map.setZoom(clusterOnlyMaxZoom);
                     }
                     console.log('지도 범위 조정 완료');
+                    
+                    // 초기 상태: 마커 표시 안 함 (옵션 패널 설정에 따라)
+                    updateMarkers();
                 } else {
                     console.error('표시할 마커가 없습니다. 데이터를 확인해주세요.');
                     alert('표시할 마커가 없습니다. 브라우저 콘솔을 확인해주세요.');
@@ -861,7 +864,8 @@
             var togglePanel = document.getElementById('toggle-panel');
             var newTogglePanel = togglePanel.cloneNode(true);
             togglePanel.parentNode.replaceChild(newTogglePanel, togglePanel);
-            newTogglePanel.addEventListener('click', function() {
+            newTogglePanel.addEventListener('click', function(e) {
+                e.stopPropagation(); // 드래그 이벤트와 충돌 방지
                 var panel = document.getElementById('options-panel');
                 var content = document.querySelector('.options-content');
                 var btn = this;
@@ -876,6 +880,100 @@
                     btn.textContent = '+';
                 }
             });
+            
+            // 패널 드래그 기능 추가
+            var panel = document.getElementById('options-panel');
+            var panelHeader = document.getElementById('panel-header');
+            var isDragging = false;
+            var currentX;
+            var currentY;
+            var initialX;
+            var initialY;
+            var xOffset = 0;
+            var yOffset = 0;
+            
+            // 드래그 시작 시 left로 전환
+            var isDraggable = false;
+            
+            function setInitialPosition() {
+                // 패널이 아직 렌더링되지 않았을 수 있으므로 약간의 지연
+                setTimeout(function() {
+                    if (!isDraggable) {
+                        // 초기 상태: 오른쪽 끝에 고정 (CSS의 right: 0 사용)
+                        panel.style.right = '0';
+                        panel.style.left = 'auto';
+                        yOffset = 20;
+                    }
+                }, 100);
+            }
+            setInitialPosition();
+            
+            // 창 크기 변경 시 위치 조정
+            window.addEventListener('resize', function() {
+                if (!isDragging) {
+                    var currentLeft = parseInt(panel.style.left) || 0;
+                    var maxX = window.innerWidth - panel.offsetWidth;
+                    if (currentLeft > maxX) {
+                        panel.style.left = Math.max(0, maxX) + 'px';
+                        xOffset = parseInt(panel.style.left);
+                    }
+                }
+            });
+            
+            panelHeader.addEventListener('mousedown', function(e) {
+                if (e.target.id === 'toggle-panel') {
+                    return; // 토글 버튼 클릭 시 드래그 방지
+                }
+                
+                // 첫 드래그 시 left로 전환
+                if (!isDraggable) {
+                    isDraggable = true;
+                    panel.classList.add('draggable');
+                    var panelRect = panel.getBoundingClientRect();
+                    xOffset = panelRect.left;
+                    yOffset = panelRect.top;
+                }
+                
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+                
+                if (e.target === panelHeader || panelHeader.contains(e.target)) {
+                    isDragging = true;
+                    panelHeader.style.cursor = 'grabbing';
+                }
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                    
+                    // 화면 경계 내에서만 이동 가능
+                    var maxX = window.innerWidth - panel.offsetWidth;
+                    var maxY = window.innerHeight - panel.offsetHeight;
+                    
+                    currentX = Math.max(0, Math.min(currentX, maxX));
+                    currentY = Math.max(0, Math.min(currentY, maxY));
+                    
+                    xOffset = currentX;
+                    yOffset = currentY;
+                    
+                    panel.style.left = currentX + 'px';
+                    panel.style.top = currentY + 'px';
+                    panel.style.right = 'auto';
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    panelHeader.style.cursor = 'grab';
+                }
+            });
+            
+            // 헤더에 grab 커서 표시
+            panelHeader.style.cursor = 'grab';
         }
         
         // 마커 업데이트 (필터링)
