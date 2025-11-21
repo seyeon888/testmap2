@@ -281,8 +281,7 @@
                             color: '#ffb703',
                             weight: 2,
                             opacity: 0.9,
-                            fillColor: '#ffb703',
-                            fillOpacity: 0.15
+                            fillOpacity: 0
                         }
                     }).addTo(map);
 
@@ -317,10 +316,10 @@
             ];
 
             seoulMaskLayer = L.polygon([outerRing].concat(seoulRings), {
-                color: '#000',
+                color: '#f2f2f2',
                 weight: 0,
-                fillColor: '#000',
-                fillOpacity: 0.65,
+                fillColor: '#f2f2f2',
+                fillOpacity: 1,
                 interactive: false
             }).addTo(map);
         }
