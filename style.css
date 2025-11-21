@@ -32,3 +32,50 @@ body {
     border-top-color: rgba(0, 0, 0, 0.8) !important;
 }
 
+.bike-marker {
+    position: relative;
+    width: 34px;
+    height: 44px;
+    margin-left: -17px;
+    margin-top: -38px;
+}
+
+.bike-marker::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50% 50% 50% 0;
+    background: linear-gradient(145deg, #ff7a18, #af002d);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    transform-origin: 0 100%;
+    transform: translateX(-50%) rotate(-45deg);
+}
+
+.bike-marker::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.bike-marker__inner {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px;
+    height: 10px;
+    border-radius: 4px;
+    background: #222;
+    box-shadow: 0 -4px 0 rgba(255, 255, 255, 0.25);
+}
+
