@@ -223,7 +223,7 @@
             maxBounds: seoulBounds,
             maxBoundsViscosity: 1.0,
             minZoom: 10,
-            maxZoom: 18,
+            maxZoom: 20,
             zoomControl: true
         }).fitBounds(seoulBounds);
         
@@ -232,7 +232,7 @@
         var seoulBoundaryLayer = null;
         var seoulMaskLayer = null;
         var seoulBoundaryGeoJsonUrl = 'https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/seoul.geojson';
-        var clusterOnlyMaxZoom = 16; // 해당 줌 이하에서는 항상 클러스터로 표시
+        var clusterOnlyMaxZoom = 19; // 해당 줌 이하에서는 항상 클러스터로 표시
 
         // 서울 시군구 이름 목록
         var seoulDistricts = [
@@ -259,7 +259,7 @@
             attribution: '© OpenStreetMap contributors © CARTO',
             subdomains: 'abcd',
             minZoom: 10,
-            maxZoom: 18
+            maxZoom: 20
         }).addTo(map);
         
         // 지도가 로드된 후 데이터 로드
