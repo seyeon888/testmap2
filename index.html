@@ -139,7 +139,7 @@
         
         // 타임아웃이 포함된 fetch 래퍼
         function fetchWithTimeout(url, timeout) {
-            timeout = timeout || 8000; // 기본 8초 타임아웃 (10초 -> 8초로 단축)
+            timeout = timeout || 6000; // 기본 6초 타임아웃 (더 빠른 실패 처리)
             return Promise.race([
                 fetch(url, {
                     method: 'GET',
@@ -159,11 +159,11 @@
         
         // 재시도 로직이 포함된 fetch 함수 (프록시 실패 시 자동 전환)
         function fetchWithRetry(url, retries, delay, originalPath) {
-            retries = retries || 2; // 재시도 횟수 줄임 (3 -> 2)
-            delay = delay || 500; // 재시도 딜레이 줄임 (1000ms -> 500ms)
+            retries = retries || 1; // 재시도 횟수 최소화 (2 -> 1)
+            delay = delay || 300; // 재시도 딜레이 최소화 (500ms -> 300ms)
             originalPath = originalPath || null;
             
-            return fetchWithTimeout(url, 8000) // 8초 타임아웃
+            return fetchWithTimeout(url, 6000) // 6초 타임아웃
             .then(function(response) {
                 if (!response.ok) {
                     // 5xx 오류나 CORS 관련 오류인 경우 프록시 전환 시도
@@ -191,17 +191,16 @@
                         if (newUrl !== url) {
                             console.log('프록시 전환 후 즉시 재시도:', newUrl.substring(0, 80) + '...');
                             // 프록시 전환 시 재시도 횟수를 리셋하여 새 프록시로 다시 시도
-                            return fetchWithRetry(newUrl, 2, 500, originalPath);
+                            return fetchWithRetry(newUrl, 1, 300, originalPath);
                         }
                     }
                 }
                 
-                // 프록시 전환 실패 시 일반 재시도
+                // 프록시 전환 실패 시 일반 재시도 (로그 제거로 성능 향상)
                 if (retries > 0) {
-                    console.log('재시도 중... (남은 횟수: ' + retries + ')');
                     return new Promise(function(resolve) {
                         setTimeout(function() {
-                            resolve(fetchWithRetry(url, retries - 1, delay * 2, originalPath));
+                            resolve(fetchWithRetry(url, retries - 1, delay * 1.5, originalPath)); // 지수 백오프 완화 (2 -> 1.5)
                         }, delay);
                     });
                 }
@@ -1358,7 +1357,7 @@
             var fetchPromises = calls.map(function(call, index) {
                 var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                 
-                return fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
+                return fetchWithRetry(pageApiUrl, 1, 300, '/json/bikeList/' + call.start + '/' + call.end + '/')
                     .then(function(pageData) {
                         // 응답 구조 확인 (첫 번째 호출에서만)
                         if (!responseKey) {
@@ -1502,7 +1501,7 @@
                 var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                 
                 // 로그 최소화로 성능 향상
-                return fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
+                return fetchWithRetry(pageApiUrl, 1, 300, '/json/bikeList/' + call.start + '/' + call.end + '/')
                     .then(function(pageData) {
                         // 응답 구조 확인 (첫 번째 호출에서만)
                         if (!responseKey) {
@@ -1572,19 +1571,14 @@
                 });
         }
         
-        // 대여소 데이터를 지역별로 필터링 (위도/경도 기반)
+        // 대여소 데이터를 지역별로 필터링 (위도/경도 기반, 최적화)
         function filterBikeStationsByDistricts(rows, visibleDistricts) {
-            if (!rows || rows.length === 0) {
-                console.log('필터링할 데이터가 없습니다.');
+            if (!rows || rows.length === 0 || !visibleDistricts || visibleDistricts.length === 0) {
                 return [];
             }
             
-            console.log('필터링 시작 - 선택된 지역:', visibleDistricts);
-            console.log('필터링할 데이터 수:', rows.length);
-            
             // Turf.js 사용 가능 여부 확인
             if (typeof turf === 'undefined' || !turf.booleanPointInPolygon) {
-                console.warn('Turf.js를 사용할 수 없습니다.');
                 return [];
             }
             
@@ -1595,26 +1589,18 @@
             visibleDistricts.forEach(function(districtName) {
                 if (districtFeatures[districtName]) {
                     selectedDistrictFeatures.push(districtFeatures[districtName]);
-                    console.log('지역 GeoJSON 로드:', districtName);
-                } else {
-                    console.warn('지역 GeoJSON을 찾을 수 없습니다:', districtName);
-                    console.log('사용 가능한 지역:', Object.keys(districtFeatures));
                 }
             });
             
             if (selectedDistrictFeatures.length === 0) {
-                console.warn('선택된 지역의 GeoJSON이 없습니다.');
-                console.log('districtFeatures 객체:', districtFeatures);
                 return [];
             }
             
-            console.log('선택된 지역 GeoJSON 수:', selectedDistrictFeatures.length);
+            var filteredRows = [];
             
-            var validCoordsCount = 0;
-            var invalidCoordsCount = 0;
-            var matchedCount = 0;
-            
-            rows.forEach(function(row, index) {
+            // 최적화: for 루프 사용 (forEach보다 빠름)
+            for (var idx = 0; idx < rows.length; idx++) {
+                var row = rows[idx];
                 // 좌표 추출
                 var lat = parseFloat(row.lat || row.LAT || row.stationLatitude || row.latitude);
                 var lng = parseFloat(row.lng || row.LNG || row.stationLongitude || row.longitude);
@@ -1622,59 +1608,34 @@
                 // 유효한 좌표인지 확인
                 if (!lat || !lng || isNaN(lat) || isNaN(lng) || 
                     lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-                    invalidCoordsCount++;
-                    if (index < 5) {
-                        console.warn('유효하지 않은 좌표:', row);
-                    }
-                    return; // 유효하지 않은 좌표는 제외
+                    continue; // 유효하지 않은 좌표는 제외
                 }
-                
-                validCoordsCount++;
                 
                 // 대여소 위치를 Turf Point로 생성 (GeoJSON 형식: [경도, 위도])
                 var stationPoint = turf.point([lng, lat]);
                 
-                // 선택된 지역 중 하나라도 포함되면 매칭
-                var matches = false;
+                // 선택된 지역 중 하나라도 포함되면 매칭 (최적화: break 즉시 사용)
                 for (var i = 0; i < selectedDistrictFeatures.length; i++) {
-                    var feature = selectedDistrictFeatures[i];
-                    
                     try {
-                        // Turf.js를 사용하여 점이 다각형 내부에 있는지 확인
-                        if (turf.booleanPointInPolygon(stationPoint, feature)) {
-                            matches = true;
-                            matchedCount++;
-                            if (filteredRows.length < 5) {
-                                console.log('매칭된 대여소:', row.stationName || row.STATION_NAME, '좌표:', lat, lng);
-                            }
-                            break;
+                        if (turf.booleanPointInPolygon(stationPoint, selectedDistrictFeatures[i])) {
+                            filteredRows.push(row);
+                            break; // 매칭되면 즉시 종료
                         }
                     } catch (error) {
-                        console.error('Turf.js 오류:', error, 'feature:', feature);
+                        // 에러는 무시하고 계속 진행
                     }
                 }
-                
-                if (matches) {
-                    filteredRows.push(row);
-                }
-            });
+            }
             
-            console.log('필터링 통계:');
-            console.log('- 유효한 좌표:', validCoordsCount, '개');
-            console.log('- 유효하지 않은 좌표:', invalidCoordsCount, '개');
-            console.log('- 매칭된 대여소:', matchedCount, '개');
-            console.log('필터링 완료 - 결과:', filteredRows.length, '개');
+            // 로그 제거로 성능 향상
             return filteredRows;
         }
         
-        // 필터링된 대여소 마커 표시
+        // 필터링된 대여소 마커 표시 (최적화)
         function displayFilteredBikeStationMarkers(filteredRows) {
             if (!filteredRows || filteredRows.length === 0) {
-                console.log('표시할 대여소가 없습니다.');
                 return;
             }
-            
-            console.log('마커 표시 시작:', filteredRows.length, '개 대여소');
             
             // 기존 마커는 이미 clearBikeStationMarkers()에서 제거되었으므로 여기서는 제거하지 않음
             
