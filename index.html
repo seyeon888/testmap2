@@ -1327,8 +1327,8 @@
         
         // 자전거 대여소 정보 기능 초기화
         function initBikeStations() {
-            // 페이지 로드 시에는 데이터를 불러오지 않음
-            // 지역 선택 시마다 API 호출하여 필터링
+            // 페이지 로드 시 즉시 데이터를 미리 로드 (지역 선택 시 빠른 반응을 위해)
+            loadBikeStations();
             
             var clearBtn = document.getElementById('clear-bike-stations');
             if (clearBtn) {
@@ -1341,8 +1341,10 @@
         
         // 자전거 대여소 정보 로드 (최적화: 첫 호출 제거하고 바로 3개 병렬 호출)
         function loadBikeStations() {
-            // 기존 마커 제거
-            clearBikeStationMarkers();
+            // 데이터가 이미 로드 중이거나 로드 완료되었으면 중복 호출 방지
+            if (isDataLoaded) {
+                return;
+            }
             
             // 바로 3회로 나누어 병렬 호출 (첫 호출 제거로 시간 단축)
             var calls = [
@@ -1418,6 +1420,7 @@
                         }
                     });
                     
+                    // 데이터 로드 완료 후 선택된 지역이 있으면 자동으로 마커 표시
                     if (hasSelectedDistrict) {
                         updateBikeStationMarkers();
                     }
@@ -1452,33 +1455,19 @@
             
             // 지역이 선택되지 않았으면 모든 마커 제거
             if (visibleDistricts.length === 0) {
-                console.log('지역이 선택되지 않아 자전거 대여소를 표시하지 않습니다.');
                 clearBikeStationMarkers();
                 return;
             }
             
-            console.log('=== 지역 선택에 따른 대여소 로드 시작 ===');
-            console.log('선택된 지역:', visibleDistricts);
-            
-            // 지역 선택 시마다 API를 3회로 나누어 호출하고 필터링
-            // 마커는 새 데이터가 준비된 후에만 제거하고 추가
-            loadAndFilterBikeStations(visibleDistricts);
-        }
-        
-        // 지역별로 API 호출 및 필터링
-        function loadAndFilterBikeStations(visibleDistricts) {
-            // 캐시 키 생성 (지역 배열을 정렬하여 일관성 유지)
-            var cacheKey = visibleDistricts.slice().sort().join(',');
-            
-            // 캐시 확인: 이미 로드된 전체 데이터가 있고, 같은 지역 조합이 캐시에 있으면 재사용
+            // 데이터가 이미 로드되어 있으면 즉시 필터링 (API 호출 없음)
             if (isDataLoaded && allBikeStationData.length > 0) {
+                var cacheKey = visibleDistricts.slice().sort().join(',');
                 if (bikeStationCache[cacheKey]) {
                     clearBikeStationMarkers();
                     displayFilteredBikeStationMarkers(bikeStationCache[cacheKey]);
                     return;
                 }
-                
-                // 전체 데이터가 있으면 API 호출 없이 필터링만 수행
+                // 캐시에 없으면 필터링만 수행
                 var filtered = filterBikeStationsByDistricts(allBikeStationData, visibleDistricts);
                 bikeStationCache[cacheKey] = filtered;
                 clearBikeStationMarkers();
@@ -1486,7 +1475,50 @@
                 return;
             }
             
-            // 3회로 나누어 호출
+            // 데이터가 아직 로드되지 않았으면 로드 중... (백그라운드에서 로드)
+            // loadBikeStations가 완료되면 자동으로 updateBikeStationMarkers가 호출됨
+            if (!isDataLoaded) {
+                // 데이터 로드 중이면 로드 완료를 기다림
+                var checkInterval = setInterval(function() {
+                    if (isDataLoaded) {
+                        clearInterval(checkInterval);
+                        // 데이터 로드 완료 후 필터링
+                        var cacheKey = visibleDistricts.slice().sort().join(',');
+                        if (bikeStationCache[cacheKey]) {
+                            clearBikeStationMarkers();
+                            displayFilteredBikeStationMarkers(bikeStationCache[cacheKey]);
+                        } else {
+                            var filtered = filterBikeStationsByDistricts(allBikeStationData, visibleDistricts);
+                            bikeStationCache[cacheKey] = filtered;
+                            clearBikeStationMarkers();
+                            displayFilteredBikeStationMarkers(filtered);
+                        }
+                    }
+                }, 100); // 100ms마다 확인
+                return;
+            }
+            
+            // 데이터가 이미 로드되어 있으면 즉시 필터링 (위에서 이미 처리됨)
+        }
+        
+        // 지역별로 API 호출 및 필터링 (데이터가 없을 때만 호출)
+        function loadAndFilterBikeStations(visibleDistricts) {
+            // 데이터가 이미 로드되어 있으면 필터링만 수행 (이미 updateBikeStationMarkers에서 처리됨)
+            if (isDataLoaded && allBikeStationData.length > 0) {
+                var cacheKey = visibleDistricts.slice().sort().join(',');
+                if (bikeStationCache[cacheKey]) {
+                    clearBikeStationMarkers();
+                    displayFilteredBikeStationMarkers(bikeStationCache[cacheKey]);
+                    return;
+                }
+                var filtered = filterBikeStationsByDistricts(allBikeStationData, visibleDistricts);
+                bikeStationCache[cacheKey] = filtered;
+                clearBikeStationMarkers();
+                displayFilteredBikeStationMarkers(filtered);
+                return;
+            }
+            
+            // 데이터가 없을 때만 API 호출 (3회로 나누어 호출)
             var calls = [
                 { start: 1, end: 1000 },
                 { start: 1001, end: 2000 },
