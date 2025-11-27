@@ -30,28 +30,40 @@
         </div>
         <div class="options-content">
             <div class="option-group">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggle-all-markers">
-                    <span class="slider"></span>
-                    <span class="toggle-label">전체 마커 표시</span>
+                <div class="district-header" id="district-filter-header" style="cursor: pointer; user-select: none;">
+                    <span>구별 필터</span>
+                    <span class="district-toggle-icon" style="float: right; margin-left: 8px;">▶</span>
+            </div>
+                <div id="district-filters" class="district-filters" style="display: none;"></div>
+            </div>
+            <div class="option-group">
+                <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 0;">
+                    <input type="checkbox" id="show-usage-view" style="margin-right: 8px;">
+                    <span>사용량 보기</span>
                 </label>
             </div>
-            <div class="option-group">
-                <div class="district-header">구별 필터</div>
-                <div id="district-filters" class="district-filters"></div>
-            </div>
-            <div class="option-group">
-                <div class="district-header">경로 찾기</div>
-                <div id="route-controls" class="route-controls">
-                    <div class="route-info">
-                        <div id="route-start-info" class="route-location-info">출발지: 미설정</div>
-                        <div id="route-end-info" class="route-location-info">도착지: 미설정</div>
-                    </div>
-                    <button id="calculate-route-btn" class="route-calculate-btn" disabled>경로 계산</button>
-                    <button id="clear-route-btn" class="route-clear-btn">경로 초기화</button>
-                    <div id="route-result" class="route-result"></div>
-                </div>
-            </div>
+        </div>
+    </div>
+
+    <!-- 경로 정보 팝업 패널 (좌측) -->
+    <div id="route-info-panel" class="route-info-panel">
+        <div class="route-info-header">
+            <h3>경로 정보</h3>
+            <button id="close-route-info" class="close-btn">×</button>
+        </div>
+        <div id="route-info-content" class="route-info-content">
+            <div class="route-info-placeholder">경로를 계산하면 정보가 표시됩니다.</div>
+        </div>
+    </div>
+    
+    <!-- 대여소 정보 패널 (우측 하단) -->
+    <div id="station-info-panel" class="station-info-panel">
+        <div class="station-info-header">
+            <h3>대여소 정보</h3>
+            <button id="close-station-info" class="close-btn">×</button>
+        </div>
+        <div id="station-info-content" class="station-info-content">
+            <div class="station-info-placeholder">마커를 클릭하거나 사용량 영역에 마우스를 올리면 정보가 표시됩니다.</div>
         </div>
     </div>
 
@@ -72,6 +84,14 @@
         // Google Maps API 키 설정 (선택사항)
         // Google Maps를 사용하려면 아래 주석을 해제하고 YOUR_API_KEY를 실제 키로 변경하세요
         // var GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY';
+        
+        // GraphHopper API 키 설정 (선택사항)
+        // GraphHopper는 자전거 도로와 도보 경로를 더 정확하게 반영합니다
+        // 무료 API 키는 https://www.graphhopper.com/api/ 에서 발급받을 수 있습니다
+        // var GRAPHHOPPER_API_KEY = 'YOUR_API_KEY';
+        
+        // 서울시 공공자전거 대여소 사용 정보 API 키
+        var SEOUL_BIKE_API_KEY = '4c6561716e746f7439376d6e4e6267';
         
         // Google Maps 스타일 정의
         var mapStyle = [
@@ -262,7 +282,8 @@
         }).fitBounds(seoulBounds);
         
         // 마커 클러스터 그룹 변수
-        var markerClusterGroup = null;
+        var markerClusterGroup = null; // 레거시 호환용
+        var clusterGroupsByDistrict = {}; // 구별 클러스터 그룹 저장
         var seoulBoundaryLayer = null;
         var seoulBoundaryPolygon = null;
         var seoulMaskLayer = null;
@@ -276,6 +297,12 @@
         var endMarker = null; // 도착지 마커
         var startLocation = null; // 출발지 좌표
         var endLocation = null; // 도착지 좌표
+        var districtFeatures = {}; // 구별 GeoJSON feature 저장
+        var hoverHighlightLayer = null; // 호버 하이라이트 레이어
+        var bikeStationMarkers = []; // 자전거 대여소 마커 배열
+        var bikeStationMarkerGroup = null; // 자전거 대여소 마커 그룹
+        var bikeStationCircles = []; // 자전거 대여소 주변 색상 영역 배열
+        var allBikeStationData = []; // 모든 자전거 대여소 데이터 저장
 
         // 마스크용 커스텀 pane (타일 위, 경계선 아래)
         map.createPane('maskPane');
@@ -333,12 +360,91 @@
                     var mergedBoundary = mergeFeaturesForMask(boundarySource);
                     seoulBoundaryPolygon = (mergedBoundary && mergedBoundary.features && mergedBoundary.features[0]) ? mergedBoundary.features[0] : null;
 
+                    // 구역별 feature 저장
+                    districtFeatures = {};
+                    if (boundarySource && boundarySource.features) {
+                        boundarySource.features.forEach(function(feature) {
+                            var districtName = extractDistrictName(feature, normalizedAllowedDistricts);
+                            if (districtName) {
+                                districtFeatures[districtName] = feature;
+                            }
+                        });
+                    }
+
+                    // 경계 레이어용 pane 생성 (마스크 위에 표시)
+                    if (!map.getPane('boundaryPane')) {
+                        map.createPane('boundaryPane');
+                        map.getPane('boundaryPane').style.zIndex = 400;
+                    }
+                    
                     seoulBoundaryLayer = L.geoJSON(boundarySource, {
-                        style: {
-                            color: '#ffb703',
-                            weight: 2,
-                            opacity: 0.9,
-                            fillOpacity: 0
+                        pane: 'boundaryPane',
+                        style: function(feature) {
+                            return {
+                                color: '#ffb703',
+                                weight: 2,
+                                opacity: 0.9,
+                                fillOpacity: 0, // 기본 투명도 0
+                                fillColor: '#ffb703',
+                                interactive: true
+                            };
+                        },
+                        onEachFeature: function(feature, layer) {
+                            var districtName = extractDistrictName(feature, normalizedAllowedDistricts);
+                            if (districtName) {
+                                // 상호작용 명시적으로 활성화
+                                layer.options.interactive = true;
+                                
+                                // 기본 스타일 저장
+                                var defaultStyle = {
+                                    fillOpacity: 0,
+                                    fillColor: '#ffb703',
+                                    weight: 2,
+                                    color: '#ffb703'
+                                };
+                                
+                                // 마우스 오버 이벤트
+                                layer.on('mouseover', function(e) {
+                                    console.log('Mouseover on district:', districtName);
+                                    highlightDistrict(districtName);
+                                    layer.setStyle({
+                                        fillOpacity: 0,
+                                        fillColor: '#4CAF50',
+                                        weight: 3,
+                                        color: '#4CAF50'
+                                    });
+                                });
+                                
+                                layer.on('mouseout', function(e) {
+                                    console.log('Mouseout from district:', districtName);
+                                    clearDistrictHighlight();
+                                    layer.setStyle(defaultStyle);
+                                });
+                                
+                                layer.on('click', function(e) {
+                                    // 이벤트 전파 중지
+                                    if (e.originalEvent) {
+                                        e.originalEvent.stopPropagation();
+                                        e.originalEvent.preventDefault();
+                                    }
+                                    L.DomEvent.stopPropagation(e);
+                                    L.DomEvent.stop(e);
+                                    
+                                    // 클릭한 위치의 좌표로 정확한 구역 찾기
+                                    var clickLat = e.latlng.lat;
+                                    var clickLng = e.latlng.lng;
+                                    var clickedDistrict = findDistrictAtPoint(clickLat, clickLng);
+                                    
+                                    // 찾은 구역이 있으면 그것을 사용, 없으면 레이어의 구역 사용
+                                    var targetDistrict = clickedDistrict || districtName;
+                                    
+                                    console.log('Click on district layer:', districtName, 'clicked district:', clickedDistrict, 'using:', targetDistrict);
+                                    toggleDistrictFilter(targetDistrict);
+                                });
+                                
+                                // 초기 스타일 설정
+                                layer.setStyle(defaultStyle);
+                            }
                         }
                     }).addTo(map);
 
@@ -467,6 +573,12 @@
             if (!feature || !feature.properties) {
                 return null;
             }
+            
+            // aggregateDistrictBoundaries에서 추가한 districtName 속성 확인
+            if (feature.properties.districtName) {
+                return feature.properties.districtName;
+            }
+            
             var candidates = [
                 feature.properties.sggnm, feature.properties.SGGNM,
                 feature.properties.name, feature.properties.NAME,
@@ -722,53 +834,37 @@
                                     location.ADDR_ENG_NM + '</div>';
                             }
                             
-                            // 경로 선택 버튼 추가
-                            popupContent += '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">';
-                            popupContent += '<button class="route-btn route-start-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
-                                (location.FCLTY_NM || '자전거 대여소').replace(/'/g, "&#39;") + '">출발지로 설정</button>';
-                            popupContent += '<button class="route-btn route-end-btn" data-lat="' + lat + '" data-lng="' + lng + '" data-name="' + 
-                                (location.FCLTY_NM || '자전거 대여소').replace(/'/g, "&#39;") + '">도착지로 설정</button>';
-                            popupContent += '</div>';
-                            
                             popupContent += '</div>';
                             return popupContent;
                         }, {
                             maxWidth: 300
                         });
                         
-                        // 팝업이 열린 후 버튼 이벤트 리스너 추가
-                        marker.on('popupopen', function() {
-                            var popup = this.getPopup();
-                            var popupElement = popup.getElement();
-                            
-                            if (!popupElement) return;
-                            
-                            // 출발지 버튼
-                            var startBtn = popupElement.querySelector('.route-start-btn');
-                            if (startBtn) {
-                                startBtn.onclick = function(e) {
-                                    e.stopPropagation();
-                                    var btnLat = parseFloat(this.dataset.lat);
-                                    var btnLng = parseFloat(this.dataset.lng);
-                                    var btnName = this.dataset.name;
-                                    setStartLocation(btnLat, btnLng, btnName);
-                                    marker.closePopup();
-                                };
-                            }
-                            
-                            // 도착지 버튼
-                            var endBtn = popupElement.querySelector('.route-end-btn');
-                            if (endBtn) {
-                                endBtn.onclick = function(e) {
-                                    e.stopPropagation();
-                                    var btnLat = parseFloat(this.dataset.lat);
-                                    var btnLng = parseFloat(this.dataset.lng);
-                                    var btnName = this.dataset.name;
-                                    setEndLocation(btnLat, btnLng, btnName);
-                                    marker.closePopup();
-                                };
-                            }
+                        // 마커 클릭 이벤트: 자동으로 출발지/도착지 설정
+                        marker.on('click', function(e) {
+                            // 팝업 버튼 클릭과 구분하기 위해 약간의 지연
+                            setTimeout(function() {
+                                var markerLat = marker.getLatLng().lat;
+                                var markerLng = marker.getLatLng().lng;
+                                var markerName = location.FCLTY_NM || '자전거 대여소';
+                                var markerDistrict = district; // 구역 정보
+                                
+                                // 출발지와 도착지가 모두 설정되어 있으면 기존 경로 초기화
+                                if (startLocation && endLocation) {
+                                    clearRoute();
+                                }
+                                
+                                // 출발지가 없으면 출발지로 설정
+                                if (!startLocation) {
+                                    setStartLocation(markerLat, markerLng, markerName, markerDistrict);
+                                }
+                                // 출발지가 있고 도착지가 없으면 도착지로 설정
+                                else if (!endLocation) {
+                                    setEndLocation(markerLat, markerLng, markerName, markerDistrict);
+                                }
+                            }, 50);
                         });
+                        
                         
                         markers.push(marker);
                         
@@ -789,39 +885,82 @@
                 console.log('유효하지 않은 데이터:', invalidCount, '개');
 
                 // 기존 클러스터 그룹 제거
+                for (var district in clusterGroupsByDistrict) {
+                    if (clusterGroupsByDistrict.hasOwnProperty(district)) {
+                        map.removeLayer(clusterGroupsByDistrict[district]);
+                    }
+                }
+                clusterGroupsByDistrict = {};
+                
                 if (markerClusterGroup) {
                     map.removeLayer(markerClusterGroup);
                     markerClusterGroup = null;
                 }
 
                 if (markers.length > 0) {
-                        markerClusterGroup = L.markerClusterGroup({
-                            showCoverageOnHover: false,
-                        maxClusterRadius: 95,
-                        spiderfyOnMaxZoom: false,
-                        disableClusteringAtZoom: clusterOnlyMaxZoom + 1,
-                        removeOutsideVisibleBounds: true,
-                        iconCreateFunction: function(cluster) {
-                            var count = cluster.getChildCount();
-                            var sizeClass = 'cluster-small';
-                            if (count >= 50) {
-                                sizeClass = 'cluster-large';
-                            } else if (count >= 20) {
-                                sizeClass = 'cluster-medium';
-                            }
-                            return L.divIcon({
-                                html: '<div class="bike-cluster ' + sizeClass + '"><span>' + count + '</span></div>',
-                                className: '',
-                                iconSize: [48, 48],
-                                iconAnchor: [24, 24]
-                            });
-                        }
-                        });
-                        // 전체 마커 배열 저장 (아직 지도에 추가하지 않음)
+                        // 전체 마커 배열 저장
                         allMarkers = markers.slice();
                         
-                        // 클러스터 그룹을 지도에 추가 (마커는 나중에 updateMarkers에서 추가)
-                        map.addLayer(markerClusterGroup);
+                        // 구별로 클러스터 그룹 생성
+                        for (var district in markersByDistrict) {
+                            if (markersByDistrict.hasOwnProperty(district) && markersByDistrict[district].length > 0) {
+                                var clusterGroup = L.markerClusterGroup({
+                                    showCoverageOnHover: false,
+                                    maxClusterRadius: 95,
+                                    spiderfyOnMaxZoom: false,
+                                    disableClusteringAtZoom: clusterOnlyMaxZoom + 1,
+                                    removeOutsideVisibleBounds: false, // 화면 밖 마커도 유지
+                                    iconCreateFunction: function(cluster) {
+                                        var count = cluster.getChildCount();
+                                        var sizeClass = 'cluster-small';
+                                        if (count >= 50) {
+                                            sizeClass = 'cluster-large';
+                                        } else if (count >= 20) {
+                                            sizeClass = 'cluster-medium';
+                                        }
+                                        return L.divIcon({
+                                            html: '<div class="bike-cluster ' + sizeClass + '"><span>' + count + '</span></div>',
+                                            className: '',
+                                            iconSize: [48, 48],
+                                            iconAnchor: [24, 24]
+                                        });
+                                    }
+                                });
+                                
+                                // 클러스터 그룹 생성 (마커는 나중에 updateMarkers에서 추가)
+                                clusterGroupsByDistrict[district] = clusterGroup;
+                                
+                                // 클러스터 그룹은 지도에 추가하지 않음 (updateMarkers에서 필요할 때만 추가)
+                            }
+                        }
+                        
+                        // 레거시 호환을 위한 단일 클러스터 그룹 (사용하지 않지만 참조용)
+                        markerClusterGroup = {
+                            clearLayers: function() {
+                                for (var d in clusterGroupsByDistrict) {
+                                    if (clusterGroupsByDistrict.hasOwnProperty(d)) {
+                                        clusterGroupsByDistrict[d].clearLayers();
+                                    }
+                                }
+                            },
+                            addLayers: function(markerArray) {
+                                // 구별로 분류하여 해당 클러스터 그룹에 추가
+                                var markersByDist = {};
+                                markerArray.forEach(function(marker) {
+                                    var dist = marker.options.district;
+                                    if (!markersByDist[dist]) {
+                                        markersByDist[dist] = [];
+                                    }
+                                    markersByDist[dist].push(marker);
+                                });
+                                
+                                for (var dist in markersByDist) {
+                                    if (clusterGroupsByDistrict[dist]) {
+                                        clusterGroupsByDistrict[dist].addLayers(markersByDist[dist]);
+                                    }
+                                }
+                            }
+                        };
 
                     // 모든 마커를 포함하는 범위 계산
                     var group = new L.featureGroup(markers);
@@ -834,6 +973,9 @@
                     
                     // 초기 상태: 마커 표시 안 함 (옵션 패널 설정에 따라)
                     updateMarkers();
+                    
+                    // 지도 클릭 이벤트 초기화
+                    initMapClickHandler();
                 } else {
                     console.error('표시할 마커가 없습니다. 데이터를 확인해주세요.');
                     alert('표시할 마커가 없습니다. 브라우저 콘솔을 확인해주세요.');
@@ -908,19 +1050,33 @@
                 
                 // 구별 필터 체크박스 이벤트 리스너
                 document.querySelectorAll('.district-filter').forEach(function(checkbox) {
-                    checkbox.addEventListener('change', function() {
+                    checkbox.addEventListener('change', function(e) {
+                        // 다중 선택 모드: 여러 지역을 동시에 선택 가능
                         updateMarkers();
+                        // 자전거 대여소 마커도 업데이트 (지역 선택 시마다 API 호출)
+                        updateBikeStationMarkers();
                     });
                 });
             }
             
-            // 전체 마커 토글 이벤트 리스너 (중복 방지)
-            var toggleAll = document.getElementById('toggle-all-markers');
-            var newToggleAll = toggleAll.cloneNode(true);
-            toggleAll.parentNode.replaceChild(newToggleAll, toggleAll);
-            newToggleAll.addEventListener('change', function(e) {
-                updateMarkers();
-            });
+            // 구별 필터 접기/펼치기 기능
+            var districtFilterHeader = document.getElementById('district-filter-header');
+            var districtFilters = document.getElementById('district-filters');
+            if (districtFilterHeader && districtFilters) {
+                districtFilterHeader.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isCollapsed = districtFilters.style.display === 'none';
+                    var toggleIcon = districtFilterHeader.querySelector('.district-toggle-icon');
+                    
+                    if (isCollapsed) {
+                        districtFilters.style.display = 'block';
+                        if (toggleIcon) toggleIcon.textContent = '▼';
+                    } else {
+                        districtFilters.style.display = 'none';
+                        if (toggleIcon) toggleIcon.textContent = '▶';
+                    }
+                });
+            }
             
             // 패널 토글 버튼 이벤트 리스너 (중복 방지)
             var togglePanel = document.getElementById('toggle-panel');
@@ -1037,22 +1193,809 @@
             // 헤더에 grab 커서 표시
             panelHeader.style.cursor = 'grab';
             
+            // 자전거 대여소 정보 기능 초기화
+            initBikeStations();
+            
             // 경로 찾기 기능 초기화
             initRouteControls();
+            
+            // 사용량 보기 체크박스 이벤트 리스너
+            var showUsageCheckbox = document.getElementById('show-usage-view');
+            if (showUsageCheckbox) {
+                showUsageCheckbox.addEventListener('change', function() {
+                    updateMarkerColors();
+                });
+            }
+        }
+        
+        // 자전거 대여소 정보 기능 초기화
+        function initBikeStations() {
+            // 페이지 로드 시에는 데이터를 불러오지 않음
+            // 지역 선택 시마다 API 호출하여 필터링
+            
+            var clearBtn = document.getElementById('clear-bike-stations');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    clearBikeStationMarkers();
+                    clearBtn.style.display = 'none';
+                });
+            }
+        }
+        
+        // 자전거 대여소 정보 로드
+        function loadBikeStations() {
+            // 기존 마커 제거
+            clearBikeStationMarkers();
+            
+            // API URL 구성 - 먼저 총 개수를 확인하기 위해 작은 범위로 호출
+            var firstApiUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + 
+                        '/json/bikeList/1/1000/';
+            
+            console.log('API 호출 URL (총 개수 확인):', firstApiUrl.replace(SEOUL_BIKE_API_KEY, '***'));
+            
+            fetch(firstApiUrl)
+                .then(function(response) {
+                    console.log('API 응답 상태:', response.status, response.statusText);
+                    if (!response.ok) {
+                        throw new Error('자전거 대여소 정보를 불러올 수 없습니다: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    console.log('API 응답 데이터 (총 개수 확인):', data);
+                    
+                    // API 응답 구조 확인 및 처리
+                    var totalCount = 0;
+                    var responseKey = null;
+                    
+                    // 응답 구조 확인 (bikeList 또는 다른 키)
+                    if (data.bikeList && data.bikeList.list_total_count) {
+                        totalCount = parseInt(data.bikeList.list_total_count);
+                        responseKey = 'bikeList';
+                    } else if (data.RESULT && data.RESULT.CODE) {
+                        // 에러 응답인 경우
+                        throw new Error(data.RESULT.MESSAGE || 'API 호출 실패');
+                    } else {
+                        // 다른 가능한 응답 구조 확인
+                        for (var key in data) {
+                            if (data[key] && data[key].list_total_count) {
+                                totalCount = parseInt(data[key].list_total_count);
+                                responseKey = key;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    console.log('총 데이터 수:', totalCount);
+                    console.log('응답 키:', responseKey);
+                    
+                    if (totalCount === 0) {
+                        throw new Error('데이터가 없습니다.');
+                    }
+                    
+                    // startnum = 1, endnum = 2540
+                    // 한 번에 최대 1000건만 호출 가능하므로 3회로 나누어 호출
+                    // 1회: 1-1000, 2회: 1001-2000, 3회: 2001-2540
+                    var startnum = 1;
+                    var endnum = 2540;
+                    var pageSize = 1000;
+                    
+                    // 3회로 나누어 호출
+                    var calls = [
+                        { start: 1, end: 1000 },
+                        { start: 1001, end: 2000 },
+                        { start: 2001, end: 2540 }
+                    ];
+                    
+                    console.log('총', endnum, '개 데이터를 3회로 나누어 호출합니다.');
+                    
+                    // 모든 호출을 순차적으로 실행
+                    var fetchPromises = [];
+                    calls.forEach(function(call, index) {
+                        var pageApiUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + 
+                                        '/json/bikeList/' + call.start + '/' + call.end + '/';
+                        
+                        console.log((index + 1) + '회 호출:', call.start, '-', call.end);
+                        
+                        fetchPromises.push(
+                            fetch(pageApiUrl)
+                                .then(function(response) {
+                                    if (!response.ok) {
+                                        throw new Error('데이터를 불러올 수 없습니다: ' + response.status);
+                                    }
+                                    return response.json();
+                                })
+                                .then(function(pageData) {
+                                    // 응답 구조에 따라 데이터 추출
+                                    var rows = [];
+                                    if (pageData[responseKey] && pageData[responseKey].row) {
+                                        rows = Array.isArray(pageData[responseKey].row) ? 
+                                               pageData[responseKey].row : 
+                                               [pageData[responseKey].row];
+                                    }
+                                    return rows;
+                                })
+                                .catch(function(error) {
+                                    console.warn('호출 실패:', error);
+                                    return [];
+                                })
+                        );
+                    });
+                    
+                    // 모든 페이지 데이터를 기다린 후 합치기
+                    return Promise.all(fetchPromises).then(function(allPagesData) {
+                        return { rows: allPagesData, responseKey: responseKey };
+                    });
+                })
+                .then(function(result) {
+                    // 모든 페이지의 데이터를 하나로 합치기
+                    var allRows = [];
+                    if (result.rows && result.rows.length > 0) {
+                        result.rows.forEach(function(pageRows) {
+                        if (pageRows && pageRows.length > 0) {
+                            allRows = allRows.concat(pageRows);
+                        }
+                    });
+                    }
+                    
+                    console.log('전체 데이터 수집 완료:', allRows.length, '개 (startnum=1, endnum=2540)');
+                    
+                    // 샘플 데이터 확인 (필드명 확인용)
+                    if (allRows.length > 0) {
+                        console.log('샘플 데이터 (첫 번째 항목):', allRows[0]);
+                        console.log('사용 가능한 필드명:', Object.keys(allRows[0]));
+                    }
+                    
+                    // 모든 데이터 저장 (지역 선택 시에만 표시)
+                    allBikeStationData = allRows;
+                    
+                    // 데이터 로드 완료 후 지역 필터가 선택되어 있으면 마커 표시
+                    var hasSelectedDistrict = false;
+                    document.querySelectorAll('.district-filter').forEach(function(checkbox) {
+                        if (checkbox.checked) {
+                            hasSelectedDistrict = true;
+                        }
+                    });
+                    
+                    if (hasSelectedDistrict) {
+                        updateBikeStationMarkers();
+                    } else {
+                        console.log('지역을 선택하면 해당 지역의 대여소가 표시됩니다.');
+                    }
+                    
+                    // 버튼 상태 업데이트
+                    var clearBtn = document.getElementById('clear-bike-stations');
+                    if (clearBtn) {
+                        clearBtn.style.display = 'block';
+                    }
+                })
+                .catch(function(error) {
+                    console.error('자전거 대여소 정보 API 호출 실패:', error);
+                    alert('데이터를 불러오는 중 오류가 발생했습니다: ' + error.message);
+                });
+        }
+        
+        // 자전거 대여소 마커 업데이트 (지역 필터 적용)
+        function updateBikeStationMarkers() {
+            // 선택된 지역 필터 가져오기
+            var visibleDistricts = [];
+            document.querySelectorAll('.district-filter').forEach(function(checkbox) {
+                if (checkbox.checked) {
+                    visibleDistricts.push(checkbox.dataset.district);
+                }
+            });
+            
+            // 지역이 선택되지 않았으면 모든 마커 제거
+            if (visibleDistricts.length === 0) {
+                console.log('지역이 선택되지 않아 자전거 대여소를 표시하지 않습니다.');
+                clearBikeStationMarkers();
+                return;
+            }
+            
+            console.log('=== 지역 선택에 따른 대여소 로드 시작 ===');
+            console.log('선택된 지역:', visibleDistricts);
+            
+            // 지역 선택 시마다 API를 3회로 나누어 호출하고 필터링
+            // 마커는 새 데이터가 준비된 후에만 제거하고 추가
+            loadAndFilterBikeStations(visibleDistricts);
+        }
+        
+        // 지역별로 API 호출 및 필터링
+        function loadAndFilterBikeStations(visibleDistricts) {
+            // 3회로 나누어 호출
+            var calls = [
+                { start: 1, end: 1000 },
+                { start: 1001, end: 2000 },
+                { start: 2001, end: 2540 }
+            ];
+            
+            var allFilteredRows = [];
+            var responseKey = null;
+            
+            // 각 호출을 순차적으로 실행하고 필터링
+            var fetchPromises = calls.map(function(call, index) {
+                var pageApiUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + 
+                                '/json/bikeList/' + call.start + '/' + call.end + '/';
+                
+                console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
+                
+                return fetch(pageApiUrl)
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('데이터를 불러올 수 없습니다: ' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(function(pageData) {
+                        // 응답 구조 확인 (첫 번째 호출에서만)
+                        if (!responseKey) {
+                            if (pageData.bikeList && pageData.bikeList.list_total_count) {
+                                responseKey = 'bikeList';
+                            } else {
+                                for (var key in pageData) {
+                                    if (pageData[key] && pageData[key].list_total_count) {
+                                        responseKey = key;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 응답 구조에 따라 데이터 추출
+                        var rows = [];
+                        if (pageData[responseKey] && pageData[responseKey].row) {
+                            rows = Array.isArray(pageData[responseKey].row) ? 
+                                   pageData[responseKey].row : 
+                                   [pageData[responseKey].row];
+                        }
+                        
+                        console.log((index + 1) + '회 호출 결과:', rows.length, '개 데이터');
+                        
+                        // 첫 번째 호출에서 샘플 데이터 확인
+                        if (index === 0 && rows.length > 0) {
+                            console.log('첫 번째 데이터 샘플:', rows[0]);
+                            console.log('첫 번째 데이터의 모든 필드:', Object.keys(rows[0]));
+                        }
+                        
+                        // 즉시 필터링 수행
+                        var filtered = filterBikeStationsByDistricts(rows, visibleDistricts);
+                        console.log((index + 1) + '회 필터링 결과:', filtered.length, '개 대여소');
+                        
+                        return filtered;
+                    })
+                    .catch(function(error) {
+                        console.warn((index + 1) + '회 호출 실패:', error);
+                        return [];
+                    });
+            });
+            
+            // 모든 호출 완료 후 결과 합치기
+            Promise.all(fetchPromises)
+                .then(function(allFilteredResults) {
+                    // 모든 필터링된 결과 합치기
+                    allFilteredResults.forEach(function(filteredRows) {
+                        if (filteredRows && filteredRows.length > 0) {
+                            allFilteredRows = allFilteredRows.concat(filteredRows);
+                        }
+                    });
+                    
+                    console.log('=== 전체 필터링 결과 ===');
+                    console.log('총 필터링된 대여소 수:', allFilteredRows.length);
+                    
+                    // 새 데이터가 준비된 후에만 기존 마커 제거하고 새 마커 표시
+                    // 이렇게 하면 마커가 사라졌다 나타나는 현상을 방지
+                    clearBikeStationMarkers();
+                    
+                    if (allFilteredRows.length > 0) {
+                        displayFilteredBikeStationMarkers(allFilteredRows);
+                    } else {
+                        console.log('선택된 지역에 해당하는 대여소가 없습니다.');
+                    }
+                })
+                .catch(function(error) {
+                    console.error('대여소 로드 및 필터링 실패:', error);
+                    // 에러 발생 시에도 기존 마커는 유지
+                });
+        }
+        
+        // 대여소 데이터를 지역별로 필터링 (위도/경도 기반)
+        function filterBikeStationsByDistricts(rows, visibleDistricts) {
+            if (!rows || rows.length === 0) {
+                console.log('필터링할 데이터가 없습니다.');
+                return [];
+            }
+            
+            console.log('필터링 시작 - 선택된 지역:', visibleDistricts);
+            console.log('필터링할 데이터 수:', rows.length);
+            
+            // Turf.js 사용 가능 여부 확인
+            if (typeof turf === 'undefined' || !turf.booleanPointInPolygon) {
+                console.warn('Turf.js를 사용할 수 없습니다.');
+                return [];
+            }
+            
+            var filteredRows = [];
+            
+            // 선택된 지역의 GeoJSON feature 가져오기
+            var selectedDistrictFeatures = [];
+            visibleDistricts.forEach(function(districtName) {
+                if (districtFeatures[districtName]) {
+                    selectedDistrictFeatures.push(districtFeatures[districtName]);
+                    console.log('지역 GeoJSON 로드:', districtName);
+                } else {
+                    console.warn('지역 GeoJSON을 찾을 수 없습니다:', districtName);
+                    console.log('사용 가능한 지역:', Object.keys(districtFeatures));
+                }
+            });
+            
+            if (selectedDistrictFeatures.length === 0) {
+                console.warn('선택된 지역의 GeoJSON이 없습니다.');
+                console.log('districtFeatures 객체:', districtFeatures);
+                return [];
+            }
+            
+            console.log('선택된 지역 GeoJSON 수:', selectedDistrictFeatures.length);
+            
+            var validCoordsCount = 0;
+            var invalidCoordsCount = 0;
+            var matchedCount = 0;
+            
+            rows.forEach(function(row, index) {
+                // 좌표 추출
+                var lat = parseFloat(row.lat || row.LAT || row.stationLatitude || row.latitude);
+                var lng = parseFloat(row.lng || row.LNG || row.stationLongitude || row.longitude);
+                
+                // 유효한 좌표인지 확인
+                if (!lat || !lng || isNaN(lat) || isNaN(lng) || 
+                    lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    invalidCoordsCount++;
+                    if (index < 5) {
+                        console.warn('유효하지 않은 좌표:', row);
+                    }
+                    return; // 유효하지 않은 좌표는 제외
+                }
+                
+                validCoordsCount++;
+                
+                // 대여소 위치를 Turf Point로 생성 (GeoJSON 형식: [경도, 위도])
+                var stationPoint = turf.point([lng, lat]);
+                
+                // 선택된 지역 중 하나라도 포함되면 매칭
+                var matches = false;
+                for (var i = 0; i < selectedDistrictFeatures.length; i++) {
+                    var feature = selectedDistrictFeatures[i];
+                    
+                    try {
+                        // Turf.js를 사용하여 점이 다각형 내부에 있는지 확인
+                        if (turf.booleanPointInPolygon(stationPoint, feature)) {
+                            matches = true;
+                            matchedCount++;
+                            if (filteredRows.length < 5) {
+                                console.log('매칭된 대여소:', row.stationName || row.STATION_NAME, '좌표:', lat, lng);
+                            }
+                            break;
+                        }
+                    } catch (error) {
+                        console.error('Turf.js 오류:', error, 'feature:', feature);
+                    }
+                }
+                
+                if (matches) {
+                    filteredRows.push(row);
+                }
+            });
+            
+            console.log('필터링 통계:');
+            console.log('- 유효한 좌표:', validCoordsCount, '개');
+            console.log('- 유효하지 않은 좌표:', invalidCoordsCount, '개');
+            console.log('- 매칭된 대여소:', matchedCount, '개');
+            console.log('필터링 완료 - 결과:', filteredRows.length, '개');
+            return filteredRows;
+        }
+        
+        // 필터링된 대여소 마커 표시
+        function displayFilteredBikeStationMarkers(filteredRows) {
+            if (!filteredRows || filteredRows.length === 0) {
+                console.log('표시할 대여소가 없습니다.');
+                return;
+            }
+            
+            console.log('마커 표시 시작:', filteredRows.length, '개 대여소');
+            
+            // 기존 마커는 이미 clearBikeStationMarkers()에서 제거되었으므로 여기서는 제거하지 않음
+            
+            // 마커 그룹 생성 (클러스터링 사용)
+            bikeStationMarkerGroup = L.markerClusterGroup({
+                showCoverageOnHover: false,
+                maxClusterRadius: 80,
+                spiderfyOnMaxZoom: false,
+                disableClusteringAtZoom: 17,
+                removeOutsideVisibleBounds: false,
+                iconCreateFunction: function(cluster) {
+                    var count = cluster.getChildCount();
+                    var sizeClass = 'cluster-small';
+                    if (count >= 50) {
+                        sizeClass = 'cluster-large';
+                    } else if (count >= 20) {
+                        sizeClass = 'cluster-medium';
+                    }
+                    return L.divIcon({
+                        html: '<div class="bike-cluster ' + sizeClass + '" style="background: #0066cc;"><span>' + count + '</span></div>',
+                        className: '',
+                        iconSize: [48, 48],
+                        iconAnchor: [24, 24]
+                    });
+                }
+            });
+            
+            // 각 대여소에 마커 추가
+            filteredRows.forEach(function(row) {
+                // 좌표 확인 (API 응답 구조에 따라 필드명이 다를 수 있음)
+                var lat = parseFloat(row.lat || row.LAT || row.stationLatitude || row.latitude);
+                var lng = parseFloat(row.lng || row.LNG || row.stationLongitude || row.longitude);
+                
+                // 유효한 좌표인지 확인
+                if (lat && lng && !isNaN(lat) && !isNaN(lng) && 
+                    lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    
+                    // 대여소 이름
+                    var stationName = row.stationName || row.STATION_NAME || row.name || '자전거 대여소';
+                    
+                    // 거치율 계산
+                    var parkingBikeCnt = parseFloat(row.parkingBikeTotCnt || row.PARKING_BIKE_TOT_CNT || row.parkingBikeTotalCnt || 0);
+                    var rackTotCnt = parseFloat(row.rackTotCnt || row.RACK_TOT_CNT || row.rackTotalCnt || 1);
+                    var usageRate = rackTotCnt > 0 ? (parkingBikeCnt / rackTotCnt) * 100 : 0;
+                    
+                    // 마커 아이콘 생성 (기본 스타일 유지)
+                    var apiMarkerIcon = L.divIcon({
+                        className: '',
+                        html: '<div class="bike-marker" style="filter: hue-rotate(200deg);"><div class="bike-marker__inner"></div></div>',
+                        iconSize: [34, 44],
+                        iconAnchor: [17, 42],
+                        popupAnchor: [0, -36],
+                        tooltipAnchor: [0, -30]
+                    });
+                    
+                    // 마커에 거치율 정보 저장 (나중에 색상 업데이트용)
+                    var markerData = {
+                        usageRate: usageRate,
+                        parkingBikeCnt: parkingBikeCnt,
+                        rackTotCnt: rackTotCnt
+                    };
+                    
+                    // 지역 정보 추출 및 저장
+                    var district = row.SIGNGU_NM || row.sigunguNm || row.district || row.gu || 
+                                  row.stationGrpName || row.구 || row.시군구 || '기타';
+                    
+                    // 마커 생성 (지역 정보 포함)
+                    var marker = L.marker([lat, lng], { 
+                        icon: apiMarkerIcon,
+                        district: district,
+                        stationData: row,
+                        markerData: markerData // 거치율 정보 저장
+                    })
+                    .bindTooltip(stationName, {
+                                permanent: false,
+                                direction: 'top',
+                                className: 'custom-tooltip',
+                                offset: [0, -10]
+                    })
+                    // 마커 클릭 시 패널에 정보 표시 및 길찾기 기능
+                    .on('click', function(e) {
+                        e.originalEvent.stopPropagation();
+                        // 패널에 정보 표시
+                        showStationInfo(stationName, row);
+                        
+                        // 길찾기 기능: 출발지/도착지 설정
+                        // 팝업 버튼 클릭과 구분하기 위해 약간의 지연
+                        setTimeout(function() {
+                            var markerLat = marker.getLatLng().lat;
+                            var markerLng = marker.getLatLng().lng;
+                            var markerName = stationName;
+                            var markerDistrict = district;
+                            
+                            // 출발지와 도착지가 모두 설정되어 있으면 기존 경로 초기화
+                            if (startLocation && endLocation) {
+                                clearRoute();
+                            }
+                            
+                            // 출발지가 없으면 출발지로 설정
+                            if (!startLocation) {
+                                setStartLocation(markerLat, markerLng, markerName, markerDistrict);
+                            }
+                            // 출발지가 있고 도착지가 없으면 도착지로 설정
+                            else if (!endLocation) {
+                                setEndLocation(markerLat, markerLng, markerName, markerDistrict);
+                            }
+                        }, 50);
+                    });
+                    
+                    bikeStationMarkers.push(marker);
+                    bikeStationMarkerGroup.addLayer(marker);
+                    
+                    // 마커 주변 색상 영역 생성 (사용량 보기용)
+                    // 마커 정보를 circle에 연결하기 위해 marker와 row 정보 전달
+                    console.log('Creating circle for:', stationName, 'usageRate:', usageRate);
+                    var circle = createUsageCircle(lat, lng, usageRate, marker, row, stationName);
+                    if (circle) {
+                        bikeStationCircles.push(circle);
+                        console.log('Circle added to array:', stationName, 'total circles:', bikeStationCircles.length);
+                    } else {
+                        console.error('Failed to create circle for:', stationName);
+                    }
+                }
+            });
+            
+            // 사용량 보기 체크 여부 확인
+            var showUsageView = document.getElementById('show-usage-view') && document.getElementById('show-usage-view').checked;
+            
+            // 마커 그룹을 지도에 추가 (사용량 보기가 체크되어 있지 않을 때만)
+            if (bikeStationMarkerGroup) {
+                if (!showUsageView) {
+                    // 사용량 보기가 체크되어 있지 않으면 마커 표시
+                    if (!map.hasLayer(bikeStationMarkerGroup)) {
+                        map.addLayer(bikeStationMarkerGroup);
+                    }
+                    // 색상 영역은 숨김
+                    bikeStationCircles.forEach(function(circle) {
+                        if (map.hasLayer(circle)) {
+                            map.removeLayer(circle);
+                        }
+                    });
+                } else {
+                    // 사용량 보기가 체크되어 있으면 마커는 숨기고 색상 영역만 표시
+                    if (map.hasLayer(bikeStationMarkerGroup)) {
+                        map.removeLayer(bikeStationMarkerGroup);
+                    }
+                    bikeStationCircles.forEach(function(circle) {
+                        if (!map.hasLayer(circle)) {
+                            circle.addTo(map);
+                            // circle이 지도에 추가되었는지 확인
+                            console.log('Circle added to map:', circle.stationName, 'hasLayer:', map.hasLayer(circle));
+                        }
+                    });
+                }
+            }
+            
+            console.log('자전거 대여소 마커 표시 완료:', bikeStationMarkers.length, '개');
+        }
+        
+        // 거치율에 따른 색상 영역 생성
+        function createUsageCircle(lat, lng, usageRate, marker, row, stationName) {
+            console.log('createUsageCircle called:', stationName, lat, lng, usageRate);
+            // 거치율에 따라 색상 결정
+            var usageLevel = Math.floor(usageRate / 10); // 0~10 사이의 값
+            var opacity = 0.2 + (usageLevel * 0.08); // 0.2 ~ 1.0 사이 (10단위당 0.08 증가)
+            
+            // 거치율에 따라 색상 변경 (높을수록 빨간색, 낮을수록 초록색)
+            var r, g, b;
+            if (usageRate >= 50) {
+                // 높은 거치율 (50% 이상): 빨간색 계열
+                var intensity = (usageRate - 50) / 50; // 0~1 사이
+                r = 255;
+                g = Math.floor(255 * (1 - intensity));
+                b = Math.floor(255 * (1 - intensity));
+            } else {
+                // 낮은 거치율 (50% 미만): 초록색 계열
+                var intensity = usageRate / 50; // 0~1 사이
+                r = Math.floor(255 * intensity);
+                g = 255;
+                b = Math.floor(255 * intensity);
+            }
+            
+            // 임의의 크기 (거치율에 따라 약간 변동)
+            var baseRadius = 30 + (usageLevel * 5); // 기본 30m + 거치율에 따라 증가
+            var randomVariation = Math.random() * 20 - 10; // -10 ~ +10 랜덤 변동
+            var radius = baseRadius + randomVariation;
+            
+            // 원형 영역 생성 (interactive: true로 설정하여 마우스 이벤트 활성화)
+            var circle = L.circle([lat, lng], {
+                radius: radius,
+                fillColor: 'rgb(' + r + ', ' + g + ', ' + b + ')',
+                color: 'rgb(' + r + ', ' + g + ', ' + b + ')',
+                weight: 2,
+                opacity: opacity,
+                fillOpacity: opacity * 0.5,
+                interactive: true, // 마우스 이벤트 활성화
+                bubblingMouseEvents: false // 이벤트 버블링 방지
+            });
+            
+            // 마커 정보를 circle에 저장
+            circle.marker = marker;
+            circle.stationData = row;
+            circle.stationName = stationName;
+            circle.usageRate = usageRate;
+            
+            // 팝업 내용 생성
+            var popupContent = generateStationPopupContent(stationName, row);
+            
+            // 팝업 인스턴스 저장 (circle에 직접 저장)
+            circle._usagePopup = null;
+            
+            // 마우스 오버 시 팝업 표시
+            circle.on('mouseover', function(e) {
+                var circleLayer = this;
+                // 기존 팝업이 있으면 제거
+                if (circleLayer._usagePopup) {
+                    map.closePopup(circleLayer._usagePopup);
+                }
+                
+                // 새 팝업 생성 및 표시
+                circleLayer._usagePopup = L.popup({
+                    maxWidth: 350,
+                    className: 'usage-circle-popup',
+                    closeButton: false,
+                    autoClose: false,
+                    closeOnClick: false,
+                    closeOnEscapeKey: false
+                })
+                .setLatLng([lat, lng])
+                .setContent(popupContent);
+                
+                circleLayer._usagePopup.openOn(map);
+            });
+            
+            // 마우스 아웃 시 팝업 제거
+            circle.on('mouseout', function(e) {
+                var circleLayer = this;
+                if (circleLayer._usagePopup) {
+                    map.closePopup(circleLayer._usagePopup);
+                    circleLayer._usagePopup = null;
+                }
+            });
+            
+            // 클릭 이벤트는 막기 (팝업이 닫히지 않도록)
+            circle.on('click', function(e) {
+                e.originalEvent.stopPropagation();
+            });
+            
+            // circle이 지도에 추가된 후에도 이벤트가 작동하도록 확인
+            circle.on('add', function() {
+                console.log('Circle added to map:', stationName);
+            });
+            
+            return circle;
+        }
+        
+        // 대여소 정보 팝업 내용 생성 (마커 팝업과 동일한 형식)
+        function generateStationPopupContent(stationName, row) {
+            var popupContent = '<div class="info">';
+            popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + stationName + '</strong>';
+            
+            // 제외할 필드 목록
+            var excludeFields = {
+                'lat': true, 'LAT': true, 'stationLatitude': true, 'latitude': true,
+                'lng': true, 'LNG': true, 'stationLongitude': true, 'longitude': true,
+                'stationName': true, 'STATION_NAME': true, 'name': true,
+                'rackTotCnt': true, 'RACK_TOT_CNT': true, 'rackTotalCnt': true,
+                'parkingTotal': true, 'totalParking': true,
+                'stationId': true, 'STATION_ID': true
+            };
+            
+            // 모든 필드를 동적으로 표시
+            var hasData = false;
+            var fieldOrder = [];
+            var fieldValues = {};
+            
+            for (var key in row) {
+                if (row.hasOwnProperty(key) && !excludeFields[key]) {
+                    var value = row[key];
+                    if (value !== null && value !== undefined && value !== '') {
+                        fieldOrder.push(key);
+                        fieldValues[key] = value;
+                        hasData = true;
+                    }
+                }
+            }
+            
+            // 필드명을 한글이나 의미있는 이름으로 변환하는 함수
+            function getFieldLabel(key) {
+                if (/[가-힣]/.test(key)) {
+                    return key;
+                }
+                
+                var fieldMap = {
+                    'parkingBikeTotCnt': '현재 자전거 수',
+                    'PARKING_BIKE_TOT_CNT': '현재 자전거 수',
+                    'parkingBikeTotalCnt': '현재 자전거 수',
+                    'shared': '거치율',
+                    'SHARED': '거치율',
+                    'address': '주소',
+                    'ADDRESS': '주소',
+                    'district': '시군구',
+                    'SIGNGU_NM': '시군구',
+                    'gu': '구',
+                    'stationLatitude': '위도',
+                    'stationLongitude': '경도',
+                    'stationName': '대여소명',
+                    'STATION_NAME': '대여소명'
+                };
+                
+                return fieldMap[key] || key;
+            }
+            
+            // 값 포맷팅 함수
+            function formatValue(key, value) {
+                if (typeof value === 'number' || (!isNaN(value) && value !== '')) {
+                    var numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        if (numValue % 1 === 0) {
+                            return numValue.toLocaleString();
+                        }
+                        return numValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                    }
+                }
+                return String(value);
+            }
+            
+            // 필드를 표시
+            if (hasData) {
+                fieldOrder.forEach(function(key) {
+                    var label = getFieldLabel(key);
+                    var value = formatValue(key, fieldValues[key]);
+                    
+                    popupContent += '<div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;">';
+                    popupContent += '<span style="color: #666; font-size: 12px; display: inline-block; min-width: 100px;">' + label + ':</span> ';
+                    popupContent += '<span style="color: #333; font-size: 13px; font-weight: 500;">' + value + '</span>';
+                    popupContent += '</div>';
+                });
+            } else {
+                popupContent += '<div style="color: #999; font-size: 12px;">추가 정보가 없습니다.</div>';
+            }
+            
+            popupContent += '</div>';
+            return popupContent;
+        }
+        
+        // 사용량 보기 체크박스 변경 시 색상 영역 표시/숨김 및 마커 표시/숨김
+        function updateMarkerColors() {
+            var showUsageView = document.getElementById('show-usage-view') && document.getElementById('show-usage-view').checked;
+            
+            if (showUsageView) {
+                // 사용량 보기 활성화: 마커 숨기고 색상 영역 표시
+                if (bikeStationMarkerGroup && map.hasLayer(bikeStationMarkerGroup)) {
+                    map.removeLayer(bikeStationMarkerGroup);
+                }
+                
+                bikeStationCircles.forEach(function(circle) {
+                    if (!map.hasLayer(circle)) {
+                        circle.addTo(map);
+                    }
+                });
+            } else {
+                // 사용량 보기 비활성화: 색상 영역 숨기고 마커 표시
+                bikeStationCircles.forEach(function(circle) {
+                    if (map.hasLayer(circle)) {
+                        map.removeLayer(circle);
+                    }
+                });
+                
+                if (bikeStationMarkerGroup && !map.hasLayer(bikeStationMarkerGroup)) {
+                    map.addLayer(bikeStationMarkerGroup);
+                }
+            }
+        }
+        
+        // 자전거 대여소 마커 제거
+        function clearBikeStationMarkers() {
+            if (bikeStationMarkerGroup) {
+                map.removeLayer(bikeStationMarkerGroup);
+                bikeStationMarkerGroup.clearLayers();
+                bikeStationMarkerGroup = null;
+            }
+            bikeStationMarkers = [];
+            
+            // 색상 영역도 제거
+            bikeStationCircles.forEach(function(circle) {
+                if (map.hasLayer(circle)) {
+                    map.removeLayer(circle);
+                }
+            });
+            bikeStationCircles = [];
         }
         
         // 경로 찾기 기능 초기화
         function initRouteControls() {
-            // 경로 계산 버튼
-            var calculateBtn = document.getElementById('calculate-route-btn');
-            if (calculateBtn) {
-                calculateBtn.addEventListener('click', function() {
-                    if (startLocation && endLocation) {
-                        calculateRoute(startLocation, endLocation);
-                    }
-                });
-            }
-            
             // 경로 초기화 버튼
             var clearBtn = document.getElementById('clear-route-btn');
             if (clearBtn) {
@@ -1060,11 +2003,28 @@
                     clearRoute();
                 });
             }
+            
+            // 우측 패널 닫기 버튼
+            var closeBtn = document.getElementById('close-route-info');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    // 경로 정보 패널을 닫을 때 지도에 표시된 경로도 함께 제거
+                    clearRoute();
+                });
+            }
+            
+            // 대여소 정보 패널 닫기 버튼
+            var closeStationBtn = document.getElementById('close-station-info');
+            if (closeStationBtn) {
+                closeStationBtn.addEventListener('click', function() {
+                    hideStationInfo();
+                });
+            }
         }
         
         // 출발지 설정
-        function setStartLocation(lat, lng, name) {
-            startLocation = { lat: lat, lng: lng, name: name };
+        function setStartLocation(lat, lng, name, district) {
+            startLocation = { lat: lat, lng: lng, name: name, district: district };
             updateRouteInfo();
             
             // 출발지 마커 표시
@@ -1079,11 +2039,16 @@
                     iconAnchor: [30, 15]
                 })
             }).addTo(map);
+            
+            // 도착지가 이미 설정되어 있으면 자동으로 경로 계산
+            if (endLocation) {
+                calculateRoute(startLocation, endLocation);
+            }
         }
         
         // 도착지 설정
-        function setEndLocation(lat, lng, name) {
-            endLocation = { lat: lat, lng: lng, name: name };
+        function setEndLocation(lat, lng, name, district) {
+            endLocation = { lat: lat, lng: lng, name: name, district: district };
             updateRouteInfo();
             
             // 도착지 마커 표시
@@ -1098,13 +2063,231 @@
                     iconAnchor: [30, 15]
                 })
             }).addTo(map);
+            
+            // 출발지가 이미 설정되어 있으면 자동으로 경로 계산
+            if (startLocation) {
+                calculateRoute(startLocation, endLocation);
+            }
+        }
+        
+        // 대여소 정보 패널에 정보 표시
+        function showStationInfo(stationName, row) {
+            var infoPanel = document.getElementById('station-info-panel');
+            var infoContent = document.getElementById('station-info-content');
+            
+            if (!infoPanel || !infoContent) return;
+            
+            // 패널 내용 생성
+            var content = '<div class="info">';
+            content += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + stationName + '</strong>';
+            
+            // 제외할 필드 목록
+            var excludeFields = {
+                'lat': true, 'LAT': true, 'stationLatitude': true, 'latitude': true,
+                'lng': true, 'LNG': true, 'stationLongitude': true, 'longitude': true,
+                'stationName': true, 'STATION_NAME': true, 'name': true,
+                'rackTotCnt': true, 'RACK_TOT_CNT': true, 'rackTotalCnt': true,
+                'parkingTotal': true, 'totalParking': true,
+                'stationId': true, 'STATION_ID': true
+            };
+            
+            // 모든 필드를 동적으로 표시
+            var hasData = false;
+            var fieldOrder = [];
+            var fieldValues = {};
+            
+            for (var key in row) {
+                if (row.hasOwnProperty(key) && !excludeFields[key]) {
+                    var value = row[key];
+                    if (value !== null && value !== undefined && value !== '') {
+                        fieldOrder.push(key);
+                        fieldValues[key] = value;
+                        hasData = true;
+                    }
+                }
+            }
+            
+            // 필드명을 한글이나 의미있는 이름으로 변환하는 함수
+            function getFieldLabel(key) {
+                if (/[가-힣]/.test(key)) {
+                    return key;
+                }
+                
+                var fieldMap = {
+                    'parkingBikeTotCnt': '현재 자전거 수',
+                    'PARKING_BIKE_TOT_CNT': '현재 자전거 수',
+                    'parkingBikeTotalCnt': '현재 자전거 수',
+                    'shared': '거치율',
+                    'SHARED': '거치율',
+                    'address': '주소',
+                    'ADDRESS': '주소',
+                    'district': '시군구',
+                    'SIGNGU_NM': '시군구',
+                    'gu': '구',
+                    'stationLatitude': '위도',
+                    'stationLongitude': '경도',
+                    'stationName': '대여소명',
+                    'STATION_NAME': '대여소명'
+                };
+                
+                return fieldMap[key] || key;
+            }
+            
+            // 값 포맷팅 함수
+            function formatValue(key, value) {
+                if (typeof value === 'number' || (!isNaN(value) && value !== '')) {
+                    var numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        if (numValue % 1 === 0) {
+                            return numValue.toLocaleString();
+                        }
+                        return numValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                    }
+                }
+                return String(value);
+            }
+            
+            // 필드를 표시
+            if (hasData) {
+                fieldOrder.forEach(function(key) {
+                    var label = getFieldLabel(key);
+                    var value = formatValue(key, fieldValues[key]);
+                    
+                    content += '<div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;">';
+                    content += '<span style="color: #666; font-size: 12px; display: inline-block; min-width: 100px;">' + label + ':</span> ';
+                    content += '<span style="color: #333; font-size: 13px; font-weight: 500;">' + value + '</span>';
+                    content += '</div>';
+                });
+            } else {
+                content += '<div style="color: #999; font-size: 12px;">추가 정보가 없습니다.</div>';
+            }
+            
+            content += '</div>';
+            
+            // 패널 내용 업데이트 및 표시
+            infoContent.innerHTML = content;
+            infoPanel.classList.add('visible');
+        }
+        
+        // 대여소 정보 패널 숨김
+        function hideStationInfo() {
+            var infoPanel = document.getElementById('station-info-panel');
+            if (infoPanel) {
+                infoPanel.classList.remove('visible');
+            }
+        }
+        
+        // 대여소 정보 패널에 정보 표시
+        function showStationInfo(stationName, row) {
+            var infoPanel = document.getElementById('station-info-panel');
+            var infoContent = document.getElementById('station-info-content');
+            
+            if (!infoPanel || !infoContent) return;
+            
+            // 패널 내용 생성
+            var content = '<div class="info">';
+            content += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + stationName + '</strong>';
+            
+            // 제외할 필드 목록
+            var excludeFields = {
+                'lat': true, 'LAT': true, 'stationLatitude': true, 'latitude': true,
+                'lng': true, 'LNG': true, 'stationLongitude': true, 'longitude': true,
+                'stationName': true, 'STATION_NAME': true, 'name': true,
+                'rackTotCnt': true, 'RACK_TOT_CNT': true, 'rackTotalCnt': true,
+                'parkingTotal': true, 'totalParking': true,
+                'stationId': true, 'STATION_ID': true
+            };
+            
+            // 모든 필드를 동적으로 표시
+            var hasData = false;
+            var fieldOrder = [];
+            var fieldValues = {};
+            
+            for (var key in row) {
+                if (row.hasOwnProperty(key) && !excludeFields[key]) {
+                    var value = row[key];
+                    if (value !== null && value !== undefined && value !== '') {
+                        fieldOrder.push(key);
+                        fieldValues[key] = value;
+                        hasData = true;
+                    }
+                }
+            }
+            
+            // 필드명을 한글이나 의미있는 이름으로 변환하는 함수
+            function getFieldLabel(key) {
+                if (/[가-힣]/.test(key)) {
+                    return key;
+                }
+                
+                var fieldMap = {
+                    'parkingBikeTotCnt': '현재 자전거 수',
+                    'PARKING_BIKE_TOT_CNT': '현재 자전거 수',
+                    'parkingBikeTotalCnt': '현재 자전거 수',
+                    'shared': '거치율',
+                    'SHARED': '거치율',
+                    'address': '주소',
+                    'ADDRESS': '주소',
+                    'district': '시군구',
+                    'SIGNGU_NM': '시군구',
+                    'gu': '구',
+                    'stationLatitude': '위도',
+                    'stationLongitude': '경도',
+                    'stationName': '대여소명',
+                    'STATION_NAME': '대여소명'
+                };
+                
+                return fieldMap[key] || key;
+            }
+            
+            // 값 포맷팅 함수
+            function formatValue(key, value) {
+                if (typeof value === 'number' || (!isNaN(value) && value !== '')) {
+                    var numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        if (numValue % 1 === 0) {
+                            return numValue.toLocaleString();
+                        }
+                        return numValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                    }
+                }
+                return String(value);
+            }
+            
+            // 필드를 표시
+            if (hasData) {
+                fieldOrder.forEach(function(key) {
+                    var label = getFieldLabel(key);
+                    var value = formatValue(key, fieldValues[key]);
+                    
+                    content += '<div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;">';
+                    content += '<span style="color: #666; font-size: 12px; display: inline-block; min-width: 100px;">' + label + ':</span> ';
+                    content += '<span style="color: #333; font-size: 13px; font-weight: 500;">' + value + '</span>';
+                    content += '</div>';
+                });
+            } else {
+                content += '<div style="color: #999; font-size: 12px;">추가 정보가 없습니다.</div>';
+            }
+            
+            content += '</div>';
+            
+            // 패널 내용 업데이트 및 표시
+            infoContent.innerHTML = content;
+            infoPanel.classList.add('visible');
+        }
+        
+        // 대여소 정보 패널 숨김
+        function hideStationInfo() {
+            var infoPanel = document.getElementById('station-info-panel');
+            if (infoPanel) {
+                infoPanel.classList.remove('visible');
+            }
         }
         
         // 경로 정보 업데이트
         function updateRouteInfo() {
             var startInfo = document.getElementById('route-start-info');
             var endInfo = document.getElementById('route-end-info');
-            var calculateBtn = document.getElementById('calculate-route-btn');
             
             if (startInfo) {
                 startInfo.textContent = '출발지: ' + (startLocation ? startLocation.name : '미설정');
@@ -1112,24 +2295,51 @@
             if (endInfo) {
                 endInfo.textContent = '도착지: ' + (endLocation ? endLocation.name : '미설정');
             }
-            if (calculateBtn) {
-                calculateBtn.disabled = !(startLocation && endLocation);
-            }
         }
         
         // 경로 계산 (OSRM API 사용)
         function calculateRoute(start, end) {
-            var resultDiv = document.getElementById('route-result');
-            if (resultDiv) {
-                resultDiv.innerHTML = '<div style="color: #666; font-size: 12px;">경로 계산 중...</div>';
+            var infoPanel = document.getElementById('route-info-panel');
+            var infoContent = document.getElementById('route-info-content');
+            
+            // 우측 패널 표시
+            if (infoPanel) {
+                infoPanel.classList.add('visible');
             }
             
-            // OSRM API 엔드포인트 (자전거 경로)
-            var osrmUrl = 'https://router.project-osrm.org/route/v1/cycling/' + 
-                start.lng + ',' + start.lat + ';' + end.lng + ',' + end.lat + 
-                '?overview=full&geometries=geojson';
+            // 로딩 메시지 표시
+            if (infoContent) {
+                infoContent.innerHTML = '<div class="route-info-loading">경로 계산 중...</div>';
+            }
             
-            fetch(osrmUrl)
+            // OSRM API 엔드포인트 (도보 경로)
+            // OSRM의 foot 프로필은 도보 경로를 우선합니다
+            var osrmUrl = 'https://router.project-osrm.org/route/v1/foot/' + 
+                start.lng + ',' + start.lat + ';' + end.lng + ',' + end.lat + 
+                '?overview=full&geometries=geojson&alternatives=false&steps=false';
+            
+            // GraphHopper API 사용 (선택사항 - API 키가 있는 경우)
+            var useGraphHopper = typeof GRAPHHOPPER_API_KEY !== 'undefined' && 
+                                 GRAPHHOPPER_API_KEY !== '' && 
+                                 GRAPHHOPPER_API_KEY !== 'YOUR_API_KEY';
+            
+            var apiUrl;
+            if (useGraphHopper) {
+                // GraphHopper 도보 경로
+                apiUrl = 'https://graphhopper.com/api/1/route?' +
+                    'point=' + start.lat + ',' + start.lng +
+                    '&point=' + end.lat + ',' + end.lng +
+                    '&vehicle=foot' +
+                    '&key=' + GRAPHHOPPER_API_KEY +
+                    '&type=json' +
+                    '&instructions=false' +
+                    '&calc_points=true' +
+                    '&points_encoded=false';
+            } else {
+                apiUrl = osrmUrl;
+            }
+            
+            fetch(apiUrl)
                 .then(function(response) {
                     if (!response.ok) {
                         throw new Error('경로를 찾을 수 없습니다.');
@@ -1137,31 +2347,65 @@
                     return response.json();
                 })
                 .then(function(data) {
-                    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                        var route = data.routes[0];
-                        var geometry = route.geometry;
-                        
-                        // 경로 표시
-                        displayRoute(geometry, route);
-                        
-                        // 경로 정보 표시
-                        var distance = (route.distance / 1000).toFixed(2); // km
-                        var duration = Math.round(route.duration / 60); // 분
-                        
-                        if (resultDiv) {
-                            resultDiv.innerHTML = '<div style="margin-top: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px; font-size: 12px;">' +
-                                '<div><strong>거리:</strong> ' + distance + ' km</div>' +
-                                '<div><strong>예상 시간:</strong> ' + duration + ' 분</div>' +
-                                '</div>';
-                        }
+                    var route, geometry, distance, duration;
+                    
+                    if (useGraphHopper && data.paths && data.paths.length > 0) {
+                        // GraphHopper 응답 처리 (도보 경로)
+                        route = data.paths[0];
+                        // GraphHopper는 points_encoded=false일 때 GeoJSON 형식으로 반환
+                        var coords = route.points.coordinates || route.points;
+                        geometry = {
+                            type: 'LineString',
+                            coordinates: coords.map(function(coord) {
+                                // GraphHopper는 [lng, lat] 형식이므로 [lat, lng]로 변환
+                                return [coord[1], coord[0]];
+                            })
+                        };
+                        distance = (route.distance / 1000).toFixed(2); // km
+                        duration = Math.round(route.time / 1000 / 60); // 초를 분으로 변환
+                    } else if (!useGraphHopper && data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                        // OSRM 응답 처리
+                        route = data.routes[0];
+                        geometry = route.geometry;
+                        distance = (route.distance / 1000).toFixed(2); // km
+                        // 자전거 평균 속도로 시간 재계산 (약 15km/h)
+                        // OSRM의 foot duration이 정확하지 않을 수 있으므로 거리 기반으로 계산
+                        var bikeSpeedKmh = 15; // 자전거 평균 속도 (km/h)
+                        var distanceKm = parseFloat(distance);
+                        duration = Math.round((distanceKm / bikeSpeedKmh) * 60); // 분으로 변환
                     } else {
                         throw new Error('경로를 찾을 수 없습니다.');
+                    }
+                    
+                    // 경로 표시
+                    displayRoute(geometry, route);
+                    
+                    // 경로 정보 표시
+                    if (infoContent) {
+                        infoContent.innerHTML = 
+                            '<div class="route-info-item">' +
+                            '<div class="route-info-label">출발지</div>' +
+                            '<div class="route-info-value">' + (start.name || '미설정') + '</div>' +
+                            '</div>' +
+                            '<div class="route-info-item">' +
+                            '<div class="route-info-label">도착지</div>' +
+                            '<div class="route-info-value">' + (end.name || '미설정') + '</div>' +
+                            '</div>' +
+                            '<div class="route-info-divider"></div>' +
+                            '<div class="route-info-item">' +
+                            '<div class="route-info-label">거리</div>' +
+                            '<div class="route-info-value highlight">' + distance + ' km</div>' +
+                            '</div>' +
+                            '<div class="route-info-item">' +
+                            '<div class="route-info-label">예상 시간</div>' +
+                            '<div class="route-info-value highlight">' + duration + ' 분</div>' +
+                            '</div>';
                     }
                 })
                 .catch(function(error) {
                     console.error('경로 계산 오류:', error);
-                    if (resultDiv) {
-                        resultDiv.innerHTML = '<div style="color: #d32f2f; font-size: 12px; margin-top: 8px;">경로를 찾을 수 없습니다.</div>';
+                    if (infoContent) {
+                        infoContent.innerHTML = '<div class="route-info-error">경로를 찾을 수 없습니다.</div>';
                     }
                 });
         }
@@ -1180,7 +2424,7 @@
             
             // 경로 polyline 생성
             routeLayer = L.polyline(latlngs, {
-                color: '#4CAF50',
+                color: '#ff6b6b', // 빨간색 계열로 변경
                 weight: 5,
                 opacity: 0.8,
                 smoothFactor: 1
@@ -1216,50 +2460,280 @@
             // 정보 업데이트
             updateRouteInfo();
             
-            var resultDiv = document.getElementById('route-result');
-            if (resultDiv) {
-                resultDiv.innerHTML = '';
+            // 우측 패널 숨기기
+            var infoPanel = document.getElementById('route-info-panel');
+            var infoContent = document.getElementById('route-info-content');
+            if (infoPanel) {
+                infoPanel.classList.remove('visible');
+            }
+            if (infoContent) {
+                infoContent.innerHTML = '<div class="route-info-placeholder">경로를 계산하면 정보가 표시됩니다.</div>';
             }
         }
         
         // 마커 업데이트 (필터링)
         function updateMarkers() {
-            if (!markerClusterGroup) {
+            // data.json 마커는 화면에서 숨김 (나중에 필요하면 다시 활성화 가능)
+            console.log('updateMarkers called - data.json 마커는 현재 숨김 처리됨');
+            return; // data.json 마커를 표시하지 않음
+            
+            // 아래 코드는 주석 처리 (나중에 필요하면 주석 해제)
+            /*
+            if (Object.keys(clusterGroupsByDistrict).length === 0) {
+                console.warn('No cluster groups available');
                 return;
             }
             
-            var showAll = document.getElementById('toggle-all-markers').checked;
             var visibleDistricts = [];
             
-            if (showAll) {
-                document.querySelectorAll('.district-filter').forEach(function(checkbox) {
-                    if (checkbox.checked) {
-                        visibleDistricts.push(checkbox.dataset.district);
-                    }
-                });
-            }
-            
-            // 모든 마커 제거
-            markerClusterGroup.clearLayers();
-            
-            if (showAll) {
-                if (visibleDistricts.length > 0) {
-                    // 선택된 구의 마커만 표시
-                    var markersToShow = [];
-                    allMarkers.forEach(function(marker) {
-                        var district = marker.options.district;
-                        if (visibleDistricts.indexOf(district) !== -1) {
-                            markersToShow.push(marker);
-                        }
-                    });
-                    markerClusterGroup.addLayers(markersToShow);
-                } else {
-                    // 아무 구도 선택되지 않았으면 모든 마커 표시
-                    markerClusterGroup.addLayers(allMarkers);
+            // 선택된 구 필터 수집
+            document.querySelectorAll('.district-filter').forEach(function(checkbox) {
+                if (checkbox.checked) {
+                    visibleDistricts.push(checkbox.dataset.district);
                 }
-            } else if (!showAll) {
-                // 전체 마커 숨김
+            });
+            
+            console.log('Visible districts:', visibleDistricts);
+            console.log('Available cluster groups:', Object.keys(clusterGroupsByDistrict));
+            console.log('Available markers by district:', Object.keys(markersByDistrict));
+            
+            // 먼저 모든 클러스터 그룹을 지도에서 제거하고 마커도 제거
+            for (var district in clusterGroupsByDistrict) {
+                if (clusterGroupsByDistrict.hasOwnProperty(district)) {
+                    var clusterGroup = clusterGroupsByDistrict[district];
+                    // 마커 먼저 제거
+                    clusterGroup.clearLayers();
+                    // 지도에서 레이어 제거
+                    if (map.hasLayer(clusterGroup)) {
+                        map.removeLayer(clusterGroup);
+                        console.log('Removed cluster group from map for district:', district);
+                    }
+                }
             }
+            
+            // 출발지/도착지가 표시되는 구역에 있는지 확인
+            var shouldClearRoute = false;
+            if (startLocation && startLocation.district) {
+                if (visibleDistricts.indexOf(startLocation.district) === -1) {
+                    shouldClearRoute = true;
+                }
+            }
+            if (endLocation && endLocation.district) {
+                if (visibleDistricts.indexOf(endLocation.district) === -1) {
+                    shouldClearRoute = true;
+                }
+            }
+            
+            // 출발지/도착지가 표시되지 않는 구역에 있으면 경로 초기화
+            if (shouldClearRoute) {
+                clearRoute();
+            }
+            
+            // 선택된 구의 클러스터 그룹만 다시 추가
+            visibleDistricts.forEach(function(district) {
+                if (clusterGroupsByDistrict[district] && markersByDistrict[district] && markersByDistrict[district].length > 0) {
+                    var clusterGroup = clusterGroupsByDistrict[district];
+                    console.log('Processing district:', district, 'marker count:', markersByDistrict[district].length);
+                    
+                    // 클러스터 그룹이 지도에 있는지 확인하고 없으면 추가
+                    if (!map.hasLayer(clusterGroup)) {
+                        map.addLayer(clusterGroup);
+                        console.log('Cluster group added to map for district:', district);
+                    }
+                    
+                    // 마커 추가
+                    try {
+                        clusterGroup.addLayers(markersByDistrict[district]);
+                        console.log('Markers added to cluster group for district:', district);
+                        
+                        // 잠시 후 마커가 제대로 추가되었는지 확인
+                        setTimeout(function() {
+                            var addedLayers = clusterGroup.getLayers();
+                            console.log('Layers in cluster group for', district, ':', addedLayers.length);
+                            if (addedLayers.length === 0) {
+                                console.error('WARNING: No layers in cluster group for district:', district);
+                                // 다시 시도
+                                clusterGroup.addLayers(markersByDistrict[district]);
+                            }
+                        }, 200);
+                    } catch (error) {
+                        console.error('Error adding markers for district:', district, error);
+                    }
+                } else {
+                    console.warn('Cannot add markers for district:', district, 
+                        'clusterGroup exists:', !!clusterGroupsByDistrict[district],
+                        'markers exist:', !!(markersByDistrict[district] && markersByDistrict[district].length > 0));
+                }
+            });
+            
+            // 자전거 대여소 마커도 업데이트
+            if (allBikeStationData && allBikeStationData.length > 0) {
+                updateBikeStationMarkers();
+            }
+            */
+        }
+        
+        // 클릭한 위치에서 가장 가까운 마커 찾기
+        function findNearestMarker(clickLat, clickLng) {
+            if (!allMarkers || allMarkers.length === 0) {
+                return null;
+            }
+            
+            var nearestMarker = null;
+            var minDistance = Infinity;
+            
+            allMarkers.forEach(function(marker) {
+                var markerLat = marker.getLatLng().lat;
+                var markerLng = marker.getLatLng().lng;
+                
+                // 두 점 사이의 거리 계산 (하버사인 공식)
+                var R = 6371; // 지구 반지름 (km)
+                var dLat = (markerLat - clickLat) * Math.PI / 180;
+                var dLng = (markerLng - clickLng) * Math.PI / 180;
+                var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(clickLat * Math.PI / 180) * Math.cos(markerLat * Math.PI / 180) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                var distance = R * c;
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestMarker = marker;
+                }
+            });
+            
+            // 5km 이내의 마커만 반환 (너무 멀면 무시)
+            if (minDistance <= 5) {
+                return nearestMarker;
+            }
+            return null;
+        }
+        
+        // 구 필터 체크
+        function checkDistrictFilter(districtName) {
+            var checkboxes = document.querySelectorAll('.district-filter');
+            checkboxes.forEach(function(checkbox) {
+                if (checkbox.dataset.district === districtName) {
+                    checkbox.checked = true;
+                    updateMarkers();
+                }
+            });
+        }
+        
+        // 구 필터 토글 (체크되어 있으면 해제, 없으면 체크)
+        function toggleDistrictFilter(districtName) {
+            console.log('toggleDistrictFilter called for:', districtName);
+            var checkboxes = document.querySelectorAll('.district-filter');
+            var found = false;
+            var targetCheckbox = null;
+            
+            checkboxes.forEach(function(checkbox) {
+                if (checkbox.dataset.district === districtName) {
+                    found = true;
+                    targetCheckbox = checkbox;
+                    checkbox.checked = !checkbox.checked;
+                    console.log('Checkbox toggled:', districtName, 'checked:', checkbox.checked);
+                }
+            });
+            
+            if (found && targetCheckbox) {
+                // change 이벤트 수동 트리거
+                var changeEvent = new Event('change');
+                targetCheckbox.dispatchEvent(changeEvent);
+            } else {
+                console.warn('Checkbox not found for district:', districtName);
+            }
+        }
+        
+        // 구역 하이라이트
+        function highlightDistrict(districtName) {
+            if (!districtFeatures[districtName]) {
+                return;
+            }
+            
+            // 기존 하이라이트 제거
+            clearDistrictHighlight();
+            
+            // 새 하이라이트 추가
+            hoverHighlightLayer = L.geoJSON(districtFeatures[districtName], {
+                style: {
+                    color: '#4CAF50',
+                    weight: 3,
+                    opacity: 0.9,
+                    fillOpacity: 0,
+                    fillColor: '#4CAF50'
+                }
+            }).addTo(map);
+        }
+        
+        // 구역 하이라이트 제거
+        function clearDistrictHighlight() {
+            if (hoverHighlightLayer) {
+                map.removeLayer(hoverHighlightLayer);
+                hoverHighlightLayer = null;
+            }
+        }
+        
+        // 클릭한 위치가 속한 구역 찾기
+        function findDistrictAtPoint(lat, lng) {
+            if (typeof turf === 'undefined' || !turf.booleanPointInPolygon) {
+                // turf.js가 없으면 가장 가까운 마커 사용
+                var nearestMarker = findNearestMarker(lat, lng);
+                if (nearestMarker && nearestMarker.options.district) {
+                    return nearestMarker.options.district;
+                }
+                return null;
+            }
+            
+            var point = turf.point([lng, lat]);
+            
+            // 각 구역 feature를 확인
+            for (var districtName in districtFeatures) {
+                if (districtFeatures.hasOwnProperty(districtName)) {
+                    var feature = districtFeatures[districtName];
+                    try {
+                        if (turf.booleanPointInPolygon(point, feature)) {
+                            return districtName;
+                        }
+                    } catch (error) {
+                        console.warn('구역 검사 중 오류:', error);
+                    }
+                }
+            }
+            
+            // 구역을 찾지 못하면 가장 가까운 마커 사용
+            var nearestMarker = findNearestMarker(lat, lng);
+            if (nearestMarker && nearestMarker.options.district) {
+                return nearestMarker.options.district;
+            }
+            
+            return null;
+        }
+        
+        // 지도 클릭 이벤트 설정 (경계 레이어 클릭 이벤트가 있으므로 비활성화)
+        function initMapClickHandler() {
+            // 경계 레이어의 클릭 이벤트를 사용하므로 지도 클릭 이벤트는 비활성화
+            // 경계 레이어가 없는 영역을 클릭할 때만 작동하도록 함
+            var mapClickHandler = function(e) {
+                // 경계 레이어 클릭 이벤트가 이미 처리했는지 확인
+                // 경계 레이어 클릭은 stopPropagation을 호출하므로 여기까지 오지 않음
+                // 하지만 혹시 모를 경우를 대비해 경계 레이어가 없는 영역만 처리
+                var clickLat = e.latlng.lat;
+                var clickLng = e.latlng.lng;
+                
+                // 클릭한 위치가 속한 구역 찾기
+                var district = findDistrictAtPoint(clickLat, clickLng);
+                
+                if (district) {
+                    toggleDistrictFilter(district);
+                }
+            };
+            
+            // 지도 클릭 이벤트는 주석 처리 (경계 레이어 클릭만 사용)
+            // map.on('click', mapClickHandler);
+            
+            // 지도에 마우스 오버 시 커서 변경
+            map.getContainer().style.cursor = 'pointer';
         }
         // DOM이 준비된 후 옵션 패널 초기화
         if (document.readyState === 'loading') {
@@ -1273,3 +2747,4 @@
     </script>
 </body>
 </html>
+
