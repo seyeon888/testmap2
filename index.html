@@ -93,6 +93,38 @@
         // 서울시 공공자전거 대여소 사용 정보 API 키
         var SEOUL_BIKE_API_KEY = '4c6561716e746f7439376d6e4e6267';
         
+        // 재시도 로직이 포함된 fetch 함수
+        function fetchWithRetry(url, retries, delay) {
+            retries = retries || 3;
+            delay = delay || 1000;
+            
+            return fetch(url, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                }
+                return response.json();
+            })
+            .catch(function(error) {
+                if (retries > 0) {
+                    console.log('재시도 중... (남은 횟수: ' + retries + ')');
+                    return new Promise(function(resolve) {
+                        setTimeout(function() {
+                            resolve(fetchWithRetry(url, retries - 1, delay * 2));
+                        }, delay);
+                    });
+                }
+                throw error;
+            });
+        }
+        
         // Google Maps 스타일 정의
         var mapStyle = [
             {
@@ -1233,15 +1265,9 @@
             
             console.log('API 호출 URL (총 개수 확인):', firstApiUrl.replace(SEOUL_BIKE_API_KEY, '***'));
             
-            fetch(firstApiUrl)
-                .then(function(response) {
-                    console.log('API 응답 상태:', response.status, response.statusText);
-                    if (!response.ok) {
-                        throw new Error('자전거 대여소 정보를 불러올 수 없습니다: ' + response.status);
-                    }
-                    return response.json();
-                })
+            fetchWithRetry(firstApiUrl, 3, 1000)
                 .then(function(data) {
+                    console.log('API 응답 상태: 성공');
                     console.log('API 응답 데이터 (총 개수 확인):', data);
                     
                     // API 응답 구조 확인 및 처리
@@ -1298,13 +1324,7 @@
                         console.log((index + 1) + '회 호출:', call.start, '-', call.end);
                         
                         fetchPromises.push(
-                            fetch(pageApiUrl)
-                                .then(function(response) {
-                                    if (!response.ok) {
-                                        throw new Error('데이터를 불러올 수 없습니다: ' + response.status);
-                                    }
-                                    return response.json();
-                                })
+                            fetchWithRetry(pageApiUrl, 3, 1000)
                                 .then(function(pageData) {
                                     // 응답 구조에 따라 데이터 추출
                                     var rows = [];
@@ -1316,7 +1336,12 @@
                                     return rows;
                                 })
                                 .catch(function(error) {
-                                    console.warn('호출 실패:', error);
+                                    var errorMsg = error.message || error.toString();
+                                    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+                                        console.error((index + 1) + '회 호출 실패: 네트워크 오류 또는 CORS 문제. API 서버에 연결할 수 없습니다.');
+                                    } else {
+                                        console.error((index + 1) + '회 호출 실패:', errorMsg);
+                                    }
                                     return [];
                                 })
                         );
@@ -1370,8 +1395,15 @@
                     }
                 })
                 .catch(function(error) {
-                    console.error('자전거 대여소 정보 API 호출 실패:', error);
-                    alert('데이터를 불러오는 중 오류가 발생했습니다: ' + error.message);
+                    var errorMsg = error.message || error.toString();
+                    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+                        console.error('자전거 대여소 정보 API 호출 실패: 네트워크 오류 또는 CORS 문제');
+                        console.error('가능한 원인: 1) 인터넷 연결 확인 2) API 서버 상태 확인 3) CORS 정책 확인');
+                        alert('API 서버에 연결할 수 없습니다.\n\n가능한 원인:\n1. 인터넷 연결을 확인하세요\n2. API 서버 상태를 확인하세요\n3. 브라우저 콘솔에서 자세한 오류를 확인하세요');
+                    } else {
+                        console.error('자전거 대여소 정보 API 호출 실패:', errorMsg);
+                        alert('데이터를 불러오는 중 오류가 발생했습니다: ' + errorMsg);
+                    }
                 });
         }
         
@@ -1419,13 +1451,7 @@
                 
                 console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
                 
-                return fetch(pageApiUrl)
-                    .then(function(response) {
-                        if (!response.ok) {
-                            throw new Error('데이터를 불러올 수 없습니다: ' + response.status);
-                        }
-                        return response.json();
-                    })
+                return fetchWithRetry(pageApiUrl, 3, 1000)
                     .then(function(pageData) {
                         // 응답 구조 확인 (첫 번째 호출에서만)
                         if (!responseKey) {
@@ -1464,7 +1490,13 @@
                         return filtered;
                     })
                     .catch(function(error) {
-                        console.warn((index + 1) + '회 호출 실패:', error);
+                        var errorMsg = error.message || error.toString();
+                        if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+                            console.error((index + 1) + '회 호출 실패: 네트워크 오류 또는 CORS 문제. API 서버에 연결할 수 없습니다.');
+                            console.error('가능한 원인: 1) 인터넷 연결 확인 2) API 서버 상태 확인 3) CORS 정책 확인');
+                        } else {
+                            console.error((index + 1) + '회 호출 실패:', errorMsg);
+                        }
                         return [];
                     });
             });
