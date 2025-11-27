@@ -93,6 +93,21 @@
         // 서울시 공공자전거 대여소 사용 정보 API 키
         var SEOUL_BIKE_API_KEY = '4c6561716e746f7439376d6e4e6267';
         
+        // CORS 프록시 설정 (HTTPS 페이지에서 HTTP API 호출 시 필요)
+        // 공개 프록시 서비스를 사용하거나, 자신의 프록시 서버를 설정할 수 있습니다
+        var USE_CORS_PROXY = true; // HTTPS 환경에서는 true로 설정
+        var CORS_PROXY_URL = 'https://api.allorigins.win/raw?url='; // 공개 CORS 프록시
+        
+        // API URL 생성 함수 (프록시 사용 여부에 따라 자동 처리)
+        function getApiUrl(path) {
+            var baseUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + path;
+            // HTTPS 페이지에서 실행 중이면 프록시 사용
+            if (USE_CORS_PROXY && window.location.protocol === 'https:') {
+                return CORS_PROXY_URL + encodeURIComponent(baseUrl);
+            }
+            return baseUrl;
+        }
+        
         // 재시도 로직이 포함된 fetch 함수
         function fetchWithRetry(url, retries, delay) {
             retries = retries || 3;
@@ -1260,8 +1275,7 @@
             clearBikeStationMarkers();
             
             // API URL 구성 - 먼저 총 개수를 확인하기 위해 작은 범위로 호출
-            var firstApiUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + 
-                        '/json/bikeList/1/1000/';
+            var firstApiUrl = getApiUrl('/json/bikeList/1/1000/');
             
             console.log('API 호출 URL (총 개수 확인):', firstApiUrl.replace(SEOUL_BIKE_API_KEY, '***'));
             
@@ -1318,8 +1332,7 @@
                     // 모든 호출을 순차적으로 실행
                     var fetchPromises = [];
                     calls.forEach(function(call, index) {
-                        var pageApiUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + 
-                                        '/json/bikeList/' + call.start + '/' + call.end + '/';
+                        var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                         
                         console.log((index + 1) + '회 호출:', call.start, '-', call.end);
                         
@@ -1446,8 +1459,7 @@
             
             // 각 호출을 순차적으로 실행하고 필터링
             var fetchPromises = calls.map(function(call, index) {
-                var pageApiUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + 
-                                '/json/bikeList/' + call.start + '/' + call.end + '/';
+                var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                 
                 console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
                 
