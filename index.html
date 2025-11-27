@@ -117,11 +117,9 @@
             
             if (USE_CORS_PROXY && isHttps) {
                 var proxyUrl = CORS_PROXY_OPTIONS[currentProxyIndex] + encodeURIComponent(baseUrl);
-                console.log('프록시 사용 [' + (currentProxyIndex + 1) + '/' + CORS_PROXY_OPTIONS.length + ']:', 
-                           baseUrl.substring(0, 50) + '... -> ' + proxyUrl.substring(0, 80) + '...');
+                // 로그 최소화 (성능 향상)
                 return proxyUrl;
             }
-            console.log('직접 호출:', baseUrl.substring(0, 80) + '...');
             return baseUrl;
         }
         
@@ -141,7 +139,7 @@
         
         // 타임아웃이 포함된 fetch 래퍼
         function fetchWithTimeout(url, timeout) {
-            timeout = timeout || 10000; // 기본 10초 타임아웃
+            timeout = timeout || 8000; // 기본 8초 타임아웃 (10초 -> 8초로 단축)
             return Promise.race([
                 fetch(url, {
                     method: 'GET',
@@ -165,7 +163,7 @@
             delay = delay || 500; // 재시도 딜레이 줄임 (1000ms -> 500ms)
             originalPath = originalPath || null;
             
-            return fetchWithTimeout(url, 10000) // 10초 타임아웃
+            return fetchWithTimeout(url, 8000) // 8초 타임아웃
             .then(function(response) {
                 if (!response.ok) {
                     // 5xx 오류나 CORS 관련 오류인 경우 프록시 전환 시도
@@ -1342,125 +1340,76 @@
             }
         }
         
-        // 자전거 대여소 정보 로드
+        // 자전거 대여소 정보 로드 (최적화: 첫 호출 제거하고 바로 3개 병렬 호출)
         function loadBikeStations() {
             // 기존 마커 제거
             clearBikeStationMarkers();
             
-            // API URL 구성 - 먼저 총 개수를 확인하기 위해 작은 범위로 호출
-            var firstApiUrl = getApiUrl('/json/bikeList/1/1000/');
+            // 바로 3회로 나누어 병렬 호출 (첫 호출 제거로 시간 단축)
+            var calls = [
+                { start: 1, end: 1000 },
+                { start: 1001, end: 2000 },
+                { start: 2001, end: 2540 }
+            ];
             
-            console.log('API 호출 URL (총 개수 확인):', firstApiUrl.replace(SEOUL_BIKE_API_KEY, '***'));
+            var responseKey = null; // 첫 번째 응답에서 결정
             
-            fetchWithRetry(firstApiUrl, 2, 500, '/json/bikeList/1/1000/')
-                .then(function(data) {
-                    console.log('API 응답 상태: 성공');
-                    console.log('API 응답 데이터 (총 개수 확인):', data);
-                    
-                    // API 응답 구조 확인 및 처리
-                    var totalCount = 0;
-                    var responseKey = null;
-                    
-                    // 응답 구조 확인 (bikeList 또는 다른 키)
-                    if (data.bikeList && data.bikeList.list_total_count) {
-                        totalCount = parseInt(data.bikeList.list_total_count);
-                        responseKey = 'bikeList';
-                    } else if (data.RESULT && data.RESULT.CODE) {
-                        // 에러 응답인 경우
-                        throw new Error(data.RESULT.MESSAGE || 'API 호출 실패');
-                    } else {
-                        // 다른 가능한 응답 구조 확인
-                        for (var key in data) {
-                            if (data[key] && data[key].list_total_count) {
-                                totalCount = parseInt(data[key].list_total_count);
-                                responseKey = key;
-                                break;
+            // 모든 호출을 병렬로 실행
+            var fetchPromises = calls.map(function(call, index) {
+                var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
+                
+                return fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
+                    .then(function(pageData) {
+                        // 응답 구조 확인 (첫 번째 호출에서만)
+                        if (!responseKey) {
+                            if (pageData.bikeList && pageData.bikeList.list_total_count) {
+                                responseKey = 'bikeList';
+                            } else {
+                                for (var key in pageData) {
+                                    if (pageData[key] && pageData[key].list_total_count) {
+                                        responseKey = key;
+                                        break;
+                                    }
+                                }
                             }
                         }
-                    }
-                    
-                    console.log('총 데이터 수:', totalCount);
-                    console.log('응답 키:', responseKey);
-                    
-                    if (totalCount === 0) {
-                        throw new Error('데이터가 없습니다.');
-                    }
-                    
-                    // startnum = 1, endnum = 2540
-                    // 한 번에 최대 1000건만 호출 가능하므로 3회로 나누어 호출
-                    // 1회: 1-1000, 2회: 1001-2000, 3회: 2001-2540
-                    var startnum = 1;
-                    var endnum = 2540;
-                    var pageSize = 1000;
-                    
-                    // 3회로 나누어 호출
-                    var calls = [
-                        { start: 1, end: 1000 },
-                        { start: 1001, end: 2000 },
-                        { start: 2001, end: 2540 }
-                    ];
-                    
-                    console.log('총', endnum, '개 데이터를 3회로 나누어 호출합니다.');
-                    
-                    // 모든 호출을 순차적으로 실행
-                    var fetchPromises = [];
-                    calls.forEach(function(call, index) {
-                        var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                         
-                        console.log((index + 1) + '회 호출:', call.start, '-', call.end);
-                        
-                        fetchPromises.push(
-                            fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
-                                .then(function(pageData) {
-                                    // 응답 구조에 따라 데이터 추출
-                                    var rows = [];
-                                    if (pageData[responseKey] && pageData[responseKey].row) {
-                                        rows = Array.isArray(pageData[responseKey].row) ? 
-                                               pageData[responseKey].row : 
-                                               [pageData[responseKey].row];
-                                    }
-                                    return rows;
-                                })
-                                .catch(function(error) {
-                                    var errorMsg = error.message || error.toString();
-                                    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
-                                        console.error((index + 1) + '회 호출 실패: 네트워크 오류 또는 CORS 문제. API 서버에 연결할 수 없습니다.');
-                                    } else {
-                                        console.error((index + 1) + '회 호출 실패:', errorMsg);
-                                    }
-                                    return [];
-                                })
-                        );
+                        // 응답 구조에 따라 데이터 추출
+                        var rows = [];
+                        if (pageData[responseKey] && pageData[responseKey].row) {
+                            rows = Array.isArray(pageData[responseKey].row) ? 
+                                   pageData[responseKey].row : 
+                                   [pageData[responseKey].row];
+                        }
+                        return rows;
+                    })
+                    .catch(function(error) {
+                        var errorMsg = error.message || error.toString();
+                        if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+                            console.error((index + 1) + '회 호출 실패: 네트워크 오류');
+                        } else {
+                            console.error((index + 1) + '회 호출 실패:', errorMsg);
+                        }
+                        return [];
                     });
-                    
-                    // 모든 페이지 데이터를 기다린 후 합치기
-                    return Promise.all(fetchPromises).then(function(allPagesData) {
-                        return { rows: allPagesData, responseKey: responseKey };
-                    });
-                })
-                .then(function(result) {
+            });
+            
+            // 모든 페이지 데이터를 기다린 후 합치기
+            Promise.all(fetchPromises)
+                .then(function(allPagesData) {
                     // 모든 페이지의 데이터를 하나로 합치기
                     var allRows = [];
-                    if (result.rows && result.rows.length > 0) {
-                        result.rows.forEach(function(pageRows) {
-                        if (pageRows && pageRows.length > 0) {
-                            allRows = allRows.concat(pageRows);
-                        }
-                    });
-                    }
-                    
-                    console.log('전체 데이터 수집 완료:', allRows.length, '개 (startnum=1, endnum=2540)');
-                    
-                    // 샘플 데이터 확인 (필드명 확인용)
-                    if (allRows.length > 0) {
-                        console.log('샘플 데이터 (첫 번째 항목):', allRows[0]);
-                        console.log('사용 가능한 필드명:', Object.keys(allRows[0]));
+                    if (allPagesData && allPagesData.length > 0) {
+                        allPagesData.forEach(function(pageRows) {
+                            if (pageRows && pageRows.length > 0) {
+                                allRows = allRows.concat(pageRows);
+                            }
+                        });
                     }
                     
                     // 모든 데이터 저장 (지역 선택 시에만 표시)
                     allBikeStationData = allRows;
                     isDataLoaded = true; // 데이터 로드 완료 표시
-                    console.log('전체 자전거 대여소 데이터 로드 완료:', allRows.length, '개');
                     
                     // 데이터 로드 완료 후 지역 필터가 선택되어 있으면 마커 표시
                     var hasSelectedDistrict = false;
@@ -1472,8 +1421,6 @@
                     
                     if (hasSelectedDistrict) {
                         updateBikeStationMarkers();
-                    } else {
-                        console.log('지역을 선택하면 해당 지역의 대여소가 표시됩니다.');
                     }
                     
                     // 버튼 상태 업데이트
@@ -1486,7 +1433,6 @@
                     var errorMsg = error.message || error.toString();
                     if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
                         console.error('자전거 대여소 정보 API 호출 실패: 네트워크 오류 또는 CORS 문제');
-                        console.error('가능한 원인: 1) 인터넷 연결 확인 2) API 서버 상태 확인 3) CORS 정책 확인');
                         alert('API 서버에 연결할 수 없습니다.\n\n가능한 원인:\n1. 인터넷 연결을 확인하세요\n2. API 서버 상태를 확인하세요\n3. 브라우저 콘솔에서 자세한 오류를 확인하세요');
                     } else {
                         console.error('자전거 대여소 정보 API 호출 실패:', errorMsg);
@@ -1528,14 +1474,12 @@
             // 캐시 확인: 이미 로드된 전체 데이터가 있고, 같은 지역 조합이 캐시에 있으면 재사용
             if (isDataLoaded && allBikeStationData.length > 0) {
                 if (bikeStationCache[cacheKey]) {
-                    console.log('캐시에서 데이터 로드:', cacheKey, '-', bikeStationCache[cacheKey].length, '개 대여소');
                     clearBikeStationMarkers();
                     displayFilteredBikeStationMarkers(bikeStationCache[cacheKey]);
                     return;
                 }
                 
                 // 전체 데이터가 있으면 API 호출 없이 필터링만 수행
-                console.log('전체 데이터에서 필터링 수행 (API 호출 없음)');
                 var filtered = filterBikeStationsByDistricts(allBikeStationData, visibleDistricts);
                 bikeStationCache[cacheKey] = filtered;
                 clearBikeStationMarkers();
@@ -1557,9 +1501,7 @@
             var fetchPromises = calls.map(function(call, index) {
                 var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                 
-                console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
-                console.log('API URL:', pageApiUrl.substring(0, 100) + (pageApiUrl.length > 100 ? '...' : ''));
-                
+                // 로그 최소화로 성능 향상
                 return fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
                     .then(function(pageData) {
                         // 응답 구조 확인 (첫 번째 호출에서만)
@@ -1584,17 +1526,8 @@
                                    [pageData[responseKey].row];
                         }
                         
-                        console.log((index + 1) + '회 호출 결과:', rows.length, '개 데이터');
-                        
-                        // 첫 번째 호출에서 샘플 데이터 확인
-                        if (index === 0 && rows.length > 0) {
-                            console.log('첫 번째 데이터 샘플:', rows[0]);
-                            console.log('첫 번째 데이터의 모든 필드:', Object.keys(rows[0]));
-                        }
-                        
-                        // 즉시 필터링 수행
+                        // 즉시 필터링 수행 (로그 제거로 성능 향상)
                         var filtered = filterBikeStationsByDistricts(rows, visibleDistricts);
-                        console.log((index + 1) + '회 필터링 결과:', filtered.length, '개 대여소');
                         
                         return filtered;
                     })
@@ -1620,10 +1553,7 @@
                         }
                     });
                     
-                    console.log('=== 전체 필터링 결과 ===');
-                    console.log('총 필터링된 대여소 수:', allFilteredRows.length);
-                    
-                    // 캐시에 저장
+                    // 캐시에 저장 (로그 제거로 성능 향상)
                     bikeStationCache[cacheKey] = allFilteredRows;
                     
                     // 새 데이터가 준비된 후에만 기존 마커 제거하고 새 마커 표시
