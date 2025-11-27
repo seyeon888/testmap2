@@ -98,13 +98,14 @@
         var USE_CORS_PROXY = true; // HTTPS 환경에서는 true로 설정
         
         // 사용 가능한 프록시 옵션 (여러 프록시를 순차적으로 시도)
+        // 더 안정적인 프록시를 우선순위로 배치
         var CORS_PROXY_OPTIONS = [
-            'https://corsproxy.io/?',
             'https://api.codetabs.com/v1/proxy?quest=',
-            'https://cors-anywhere.herokuapp.com/',
-            'https://api.allorigins.win/raw?url='
+            'https://corsproxy.io/?',
+            'https://cors-anywhere.herokuapp.com/'
         ];
         var currentProxyIndex = 0;
+        var proxyFailures = {}; // 프록시별 실패 횟수 추적
         
         // API URL 생성 함수 (프록시 사용 여부에 따라 자동 처리)
         function getApiUrl(path) {
@@ -127,27 +128,44 @@
         // 프록시 실패 시 다음 프록시로 전환
         function switchToNextProxy() {
             if (currentProxyIndex < CORS_PROXY_OPTIONS.length - 1) {
+                var oldProxy = CORS_PROXY_OPTIONS[currentProxyIndex];
+                proxyFailures[oldProxy] = (proxyFailures[oldProxy] || 0) + 1;
                 currentProxyIndex++;
-                console.log('다음 프록시로 전환:', CORS_PROXY_OPTIONS[currentProxyIndex]);
+                console.warn('프록시 실패:', oldProxy, '-> 다음 프록시로 전환:', CORS_PROXY_OPTIONS[currentProxyIndex]);
             } else {
-                console.warn('모든 프록시를 시도했지만 실패했습니다.');
+                console.error('모든 프록시를 시도했지만 실패했습니다. 페이지를 새로고침해주세요.');
+                // 모든 프록시 실패 시 처음부터 다시 시도
+                currentProxyIndex = 0;
             }
+        }
+        
+        // 타임아웃이 포함된 fetch 래퍼
+        function fetchWithTimeout(url, timeout) {
+            timeout = timeout || 10000; // 기본 10초 타임아웃
+            return Promise.race([
+                fetch(url, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                }),
+                new Promise(function(_, reject) {
+                    setTimeout(function() {
+                        reject(new Error('요청 시간 초과 (타임아웃: ' + timeout + 'ms)'));
+                    }, timeout);
+                })
+            ]);
         }
         
         // 재시도 로직이 포함된 fetch 함수 (프록시 실패 시 자동 전환)
         function fetchWithRetry(url, retries, delay, originalPath) {
-            retries = retries || 3;
-            delay = delay || 1000;
+            retries = retries || 2; // 재시도 횟수 줄임 (3 -> 2)
+            delay = delay || 500; // 재시도 딜레이 줄임 (1000ms -> 500ms)
             originalPath = originalPath || null;
             
-            return fetch(url, {
-                method: 'GET',
-                mode: 'cors',
-                cache: 'no-cache',
-                headers: {
-                    'Accept': 'application/json'
-                }
-            })
+            return fetchWithTimeout(url, 10000) // 10초 타임아웃
             .then(function(response) {
                 if (!response.ok) {
                     // 5xx 오류나 CORS 관련 오류인 경우 프록시 전환 시도
@@ -165,17 +183,22 @@
             })
             .catch(function(error) {
                 var errorMsg = error.message || error.toString();
-                // CORS 오류나 네트워크 오류인 경우 프록시 전환 시도
-                if ((errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) 
-                    && originalPath && USE_CORS_PROXY && currentProxyIndex < CORS_PROXY_OPTIONS.length - 1) {
-                    switchToNextProxy();
-                    var newUrl = getApiUrl(originalPath);
-                    if (newUrl !== url) {
-                        console.log('프록시 전환 후 재시도:', newUrl.substring(0, 80) + '...');
-                        return fetchWithRetry(newUrl, retries, delay, originalPath);
+                // CORS 오류나 네트워크 오류인 경우 프록시 전환 시도 (재시도 전에 먼저 시도)
+                if ((errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('ERR_')) 
+                    && originalPath && USE_CORS_PROXY) {
+                    // 현재 프록시가 실패했고 다른 프록시가 있으면 전환
+                    if (currentProxyIndex < CORS_PROXY_OPTIONS.length - 1) {
+                        switchToNextProxy();
+                        var newUrl = getApiUrl(originalPath);
+                        if (newUrl !== url) {
+                            console.log('프록시 전환 후 즉시 재시도:', newUrl.substring(0, 80) + '...');
+                            // 프록시 전환 시 재시도 횟수를 리셋하여 새 프록시로 다시 시도
+                            return fetchWithRetry(newUrl, 2, 500, originalPath);
+                        }
                     }
                 }
                 
+                // 프록시 전환 실패 시 일반 재시도
                 if (retries > 0) {
                     console.log('재시도 중... (남은 횟수: ' + retries + ')');
                     return new Promise(function(resolve) {
@@ -398,6 +421,8 @@
         var bikeStationMarkerGroup = null; // 자전거 대여소 마커 그룹
         var bikeStationCircles = []; // 자전거 대여소 주변 색상 영역 배열
         var allBikeStationData = []; // 모든 자전거 대여소 데이터 저장
+        var bikeStationCache = {}; // 지역별 필터링 결과 캐시
+        var isDataLoaded = false; // 전체 데이터 로드 여부
 
         // 마스크용 커스텀 pane (타일 위, 경계선 아래)
         map.createPane('maskPane');
@@ -1327,7 +1352,7 @@
             
             console.log('API 호출 URL (총 개수 확인):', firstApiUrl.replace(SEOUL_BIKE_API_KEY, '***'));
             
-            fetchWithRetry(firstApiUrl, 3, 1000, '/json/bikeList/1/1000/')
+            fetchWithRetry(firstApiUrl, 2, 500, '/json/bikeList/1/1000/')
                 .then(function(data) {
                     console.log('API 응답 상태: 성공');
                     console.log('API 응답 데이터 (총 개수 확인):', data);
@@ -1385,7 +1410,7 @@
                         console.log((index + 1) + '회 호출:', call.start, '-', call.end);
                         
                         fetchPromises.push(
-                            fetchWithRetry(pageApiUrl, 3, 1000, '/json/bikeList/' + call.start + '/' + call.end + '/')
+                            fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
                                 .then(function(pageData) {
                                     // 응답 구조에 따라 데이터 추출
                                     var rows = [];
@@ -1434,6 +1459,8 @@
                     
                     // 모든 데이터 저장 (지역 선택 시에만 표시)
                     allBikeStationData = allRows;
+                    isDataLoaded = true; // 데이터 로드 완료 표시
+                    console.log('전체 자전거 대여소 데이터 로드 완료:', allRows.length, '개');
                     
                     // 데이터 로드 완료 후 지역 필터가 선택되어 있으면 마커 표시
                     var hasSelectedDistrict = false;
@@ -1495,6 +1522,27 @@
         
         // 지역별로 API 호출 및 필터링
         function loadAndFilterBikeStations(visibleDistricts) {
+            // 캐시 키 생성 (지역 배열을 정렬하여 일관성 유지)
+            var cacheKey = visibleDistricts.slice().sort().join(',');
+            
+            // 캐시 확인: 이미 로드된 전체 데이터가 있고, 같은 지역 조합이 캐시에 있으면 재사용
+            if (isDataLoaded && allBikeStationData.length > 0) {
+                if (bikeStationCache[cacheKey]) {
+                    console.log('캐시에서 데이터 로드:', cacheKey, '-', bikeStationCache[cacheKey].length, '개 대여소');
+                    clearBikeStationMarkers();
+                    displayFilteredBikeStationMarkers(bikeStationCache[cacheKey]);
+                    return;
+                }
+                
+                // 전체 데이터가 있으면 API 호출 없이 필터링만 수행
+                console.log('전체 데이터에서 필터링 수행 (API 호출 없음)');
+                var filtered = filterBikeStationsByDistricts(allBikeStationData, visibleDistricts);
+                bikeStationCache[cacheKey] = filtered;
+                clearBikeStationMarkers();
+                displayFilteredBikeStationMarkers(filtered);
+                return;
+            }
+            
             // 3회로 나누어 호출
             var calls = [
                 { start: 1, end: 1000 },
@@ -1512,7 +1560,7 @@
                 console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
                 console.log('API URL:', pageApiUrl.substring(0, 100) + (pageApiUrl.length > 100 ? '...' : ''));
                 
-                return fetchWithRetry(pageApiUrl, 3, 1000, '/json/bikeList/' + call.start + '/' + call.end + '/')
+                return fetchWithRetry(pageApiUrl, 2, 500, '/json/bikeList/' + call.start + '/' + call.end + '/')
                     .then(function(pageData) {
                         // 응답 구조 확인 (첫 번째 호출에서만)
                         if (!responseKey) {
@@ -1574,6 +1622,9 @@
                     
                     console.log('=== 전체 필터링 결과 ===');
                     console.log('총 필터링된 대여소 수:', allFilteredRows.length);
+                    
+                    // 캐시에 저장
+                    bikeStationCache[cacheKey] = allFilteredRows;
                     
                     // 새 데이터가 준비된 후에만 기존 마커 제거하고 새 마커 표시
                     // 이렇게 하면 마커가 사라졌다 나타나는 현상을 방지
