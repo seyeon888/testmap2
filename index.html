@@ -97,10 +97,14 @@
         // 공개 프록시 서비스를 사용하거나, 자신의 프록시 서버를 설정할 수 있습니다
         var USE_CORS_PROXY = true; // HTTPS 환경에서는 true로 설정
         
-        // 사용 가능한 프록시 옵션 (하나를 선택)
-        var CORS_PROXY_URL = 'https://api.allorigins.win/raw?url='; // 옵션 1: allorigins
-        // var CORS_PROXY_URL = 'https://corsproxy.io/?'; // 옵션 2: corsproxy
-        // var CORS_PROXY_URL = 'https://api.codetabs.com/v1/proxy?quest='; // 옵션 3: codetabs
+        // 사용 가능한 프록시 옵션 (여러 프록시를 순차적으로 시도)
+        var CORS_PROXY_OPTIONS = [
+            'https://corsproxy.io/?',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://cors-anywhere.herokuapp.com/',
+            'https://api.allorigins.win/raw?url='
+        ];
+        var currentProxyIndex = 0;
         
         // API URL 생성 함수 (프록시 사용 여부에 따라 자동 처리)
         function getApiUrl(path) {
@@ -111,18 +115,30 @@
                          window.location.hostname.includes('github.com');
             
             if (USE_CORS_PROXY && isHttps) {
-                var proxyUrl = CORS_PROXY_URL + encodeURIComponent(baseUrl);
-                console.log('프록시 사용:', baseUrl.substring(0, 50) + '... -> ' + proxyUrl.substring(0, 80) + '...');
+                var proxyUrl = CORS_PROXY_OPTIONS[currentProxyIndex] + encodeURIComponent(baseUrl);
+                console.log('프록시 사용 [' + (currentProxyIndex + 1) + '/' + CORS_PROXY_OPTIONS.length + ']:', 
+                           baseUrl.substring(0, 50) + '... -> ' + proxyUrl.substring(0, 80) + '...');
                 return proxyUrl;
             }
             console.log('직접 호출:', baseUrl.substring(0, 80) + '...');
             return baseUrl;
         }
         
-        // 재시도 로직이 포함된 fetch 함수
-        function fetchWithRetry(url, retries, delay) {
+        // 프록시 실패 시 다음 프록시로 전환
+        function switchToNextProxy() {
+            if (currentProxyIndex < CORS_PROXY_OPTIONS.length - 1) {
+                currentProxyIndex++;
+                console.log('다음 프록시로 전환:', CORS_PROXY_OPTIONS[currentProxyIndex]);
+            } else {
+                console.warn('모든 프록시를 시도했지만 실패했습니다.');
+            }
+        }
+        
+        // 재시도 로직이 포함된 fetch 함수 (프록시 실패 시 자동 전환)
+        function fetchWithRetry(url, retries, delay, originalPath) {
             retries = retries || 3;
             delay = delay || 1000;
+            originalPath = originalPath || null;
             
             return fetch(url, {
                 method: 'GET',
@@ -134,16 +150,37 @@
             })
             .then(function(response) {
                 if (!response.ok) {
+                    // 5xx 오류나 CORS 관련 오류인 경우 프록시 전환 시도
+                    if ((response.status >= 500 || response.status === 0) && originalPath && USE_CORS_PROXY) {
+                        switchToNextProxy();
+                        var newUrl = getApiUrl(originalPath);
+                        if (newUrl !== url) {
+                            console.log('프록시 전환 후 재시도:', newUrl.substring(0, 80) + '...');
+                            return fetchWithRetry(newUrl, retries, delay, originalPath);
+                        }
+                    }
                     throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }
                 return response.json();
             })
             .catch(function(error) {
+                var errorMsg = error.message || error.toString();
+                // CORS 오류나 네트워크 오류인 경우 프록시 전환 시도
+                if ((errorMsg.includes('CORS') || errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) 
+                    && originalPath && USE_CORS_PROXY && currentProxyIndex < CORS_PROXY_OPTIONS.length - 1) {
+                    switchToNextProxy();
+                    var newUrl = getApiUrl(originalPath);
+                    if (newUrl !== url) {
+                        console.log('프록시 전환 후 재시도:', newUrl.substring(0, 80) + '...');
+                        return fetchWithRetry(newUrl, retries, delay, originalPath);
+                    }
+                }
+                
                 if (retries > 0) {
                     console.log('재시도 중... (남은 횟수: ' + retries + ')');
                     return new Promise(function(resolve) {
                         setTimeout(function() {
-                            resolve(fetchWithRetry(url, retries - 1, delay * 2));
+                            resolve(fetchWithRetry(url, retries - 1, delay * 2, originalPath));
                         }, delay);
                     });
                 }
@@ -1290,7 +1327,7 @@
             
             console.log('API 호출 URL (총 개수 확인):', firstApiUrl.replace(SEOUL_BIKE_API_KEY, '***'));
             
-            fetchWithRetry(firstApiUrl, 3, 1000)
+            fetchWithRetry(firstApiUrl, 3, 1000, '/json/bikeList/1/1000/')
                 .then(function(data) {
                     console.log('API 응답 상태: 성공');
                     console.log('API 응답 데이터 (총 개수 확인):', data);
@@ -1348,7 +1385,7 @@
                         console.log((index + 1) + '회 호출:', call.start, '-', call.end);
                         
                         fetchPromises.push(
-                            fetchWithRetry(pageApiUrl, 3, 1000)
+                            fetchWithRetry(pageApiUrl, 3, 1000, '/json/bikeList/' + call.start + '/' + call.end + '/')
                                 .then(function(pageData) {
                                     // 응답 구조에 따라 데이터 추출
                                     var rows = [];
@@ -1475,7 +1512,7 @@
                 console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
                 console.log('API URL:', pageApiUrl.substring(0, 100) + (pageApiUrl.length > 100 ? '...' : ''));
                 
-                return fetchWithRetry(pageApiUrl, 3, 1000)
+                return fetchWithRetry(pageApiUrl, 3, 1000, '/json/bikeList/' + call.start + '/' + call.end + '/')
                     .then(function(pageData) {
                         // 응답 구조 확인 (첫 번째 호출에서만)
                         if (!responseKey) {
