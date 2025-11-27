@@ -262,6 +262,12 @@ body {
     letter-spacing: 0.5px;
 }
 
+.district-toggle-icon {
+    font-size: 10px;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
 .district-filters {
     max-height: 300px;
     overflow-y: auto;
@@ -405,6 +411,14 @@ body {
     cursor: not-allowed;
 }
 
+.route-calculate-btn.active {
+    background: #45a049;
+}
+
+.route-calculate-btn.active:hover {
+    background: #3d8b40;
+}
+
 .route-clear-btn {
     background: #f44336;
     color: white;
@@ -445,5 +459,294 @@ body {
     font-weight: bold;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     white-space: nowrap;
+}
+
+/* 경로 정보 팝업 패널 (좌측) */
+.route-info-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    width: 300px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 9998;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: all 0.3s ease;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+}
+
+.route-info-panel.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+}
+
+.route-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 18px;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.route-info-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.route-info-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.route-info-placeholder {
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    padding: 20px 0;
+}
+
+/* 대여소 정보 패널 (우측 하단) */
+.station-info-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 350px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 9998;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(100%);
+    transition: all 0.3s ease;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+}
+
+.station-info-panel.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.station-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 18px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.station-info-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.station-info-content {
+    padding: 15px 18px;
+    overflow-y: auto;
+    flex: 1;
+    max-height: 400px;
+}
+
+.station-info-placeholder {
+    color: #999;
+    font-size: 14px;
+    text-align: center;
+    padding: 20px;
+}
+
+.route-info-loading {
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+    padding: 20px 0;
+}
+
+.route-info-error {
+    text-align: center;
+    color: #d32f2f;
+    font-size: 14px;
+    padding: 20px 0;
+}
+
+.route-info-item {
+    margin-bottom: 16px;
+}
+
+.route-info-item:last-child {
+    margin-bottom: 0;
+}
+
+.route-info-label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.route-info-value {
+    font-size: 16px;
+    color: #333;
+    font-weight: 600;
+}
+
+.route-info-value.highlight {
+    color: #4CAF50;
+    font-size: 18px;
+}
+
+.route-info-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 16px 0;
+}
+
+/* 자전거 대여소 사용 정보 스타일 */
+.month-select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+    background: white;
+}
+
+.bike-station-info {
+    margin-top: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.bike-station-summary {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-around;
+}
+
+.summary-item {
+    font-size: 13px;
+    color: #666;
+}
+
+.summary-item strong {
+    color: #007bff;
+    font-size: 16px;
+}
+
+.bike-station-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.district-group {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+.district-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #007bff;
+}
+
+.station-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.station-item {
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border-left: 3px solid #007bff;
+}
+
+.station-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.station-rent {
+    font-size: 12px;
+    color: #666;
+}
+
+.station-rent strong {
+    color: #28a745;
+    font-size: 13px;
+}
+
+.more-stations {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+    padding: 5px;
+    font-style: italic;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-size: 14px;
+}
+
+.error {
+    text-align: center;
+    padding: 20px;
+    color: #dc3545;
+    font-size: 14px;
+    background: #f8d7da;
+    border-radius: 5px;
 }
 
