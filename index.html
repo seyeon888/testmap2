@@ -96,15 +96,26 @@
         // CORS 프록시 설정 (HTTPS 페이지에서 HTTP API 호출 시 필요)
         // 공개 프록시 서비스를 사용하거나, 자신의 프록시 서버를 설정할 수 있습니다
         var USE_CORS_PROXY = true; // HTTPS 환경에서는 true로 설정
-        var CORS_PROXY_URL = 'https://api.allorigins.win/raw?url='; // 공개 CORS 프록시
+        
+        // 사용 가능한 프록시 옵션 (하나를 선택)
+        var CORS_PROXY_URL = 'https://api.allorigins.win/raw?url='; // 옵션 1: allorigins
+        // var CORS_PROXY_URL = 'https://corsproxy.io/?'; // 옵션 2: corsproxy
+        // var CORS_PROXY_URL = 'https://api.codetabs.com/v1/proxy?quest='; // 옵션 3: codetabs
         
         // API URL 생성 함수 (프록시 사용 여부에 따라 자동 처리)
         function getApiUrl(path) {
             var baseUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + path;
             // HTTPS 페이지에서 실행 중이면 프록시 사용
-            if (USE_CORS_PROXY && window.location.protocol === 'https:') {
-                return CORS_PROXY_URL + encodeURIComponent(baseUrl);
+            var isHttps = window.location.protocol === 'https:' || 
+                         window.location.hostname.includes('github.io') ||
+                         window.location.hostname.includes('github.com');
+            
+            if (USE_CORS_PROXY && isHttps) {
+                var proxyUrl = CORS_PROXY_URL + encodeURIComponent(baseUrl);
+                console.log('프록시 사용:', baseUrl.substring(0, 50) + '... -> ' + proxyUrl.substring(0, 80) + '...');
+                return proxyUrl;
             }
+            console.log('직접 호출:', baseUrl.substring(0, 80) + '...');
             return baseUrl;
         }
         
@@ -1462,6 +1473,7 @@
                 var pageApiUrl = getApiUrl('/json/bikeList/' + call.start + '/' + call.end + '/');
                 
                 console.log((index + 1) + '회 호출 및 필터링:', call.start, '-', call.end);
+                console.log('API URL:', pageApiUrl.substring(0, 100) + (pageApiUrl.length > 100 ? '...' : ''));
                 
                 return fetchWithRetry(pageApiUrl, 3, 1000)
                     .then(function(pageData) {
