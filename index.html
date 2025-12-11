@@ -981,6 +981,18 @@
                         
                         // 마커 클릭 이벤트: 자동으로 출발지/도착지 설정
                         marker.on('click', function(e) {
+                            // 클릭 애니메이션 효과 추가
+                            var iconElement = marker._icon;
+                            if (iconElement) {
+                                var markerDiv = iconElement.querySelector('.bike-marker');
+                                if (markerDiv) {
+                                    markerDiv.classList.add('marker-clicked');
+                                    setTimeout(function() {
+                                        markerDiv.classList.remove('marker-clicked');
+                                    }, 400);
+                                }
+                            }
+                            
                             // 팝업 버튼 클릭과 구분하기 위해 약간의 지연
                             setTimeout(function() {
                                 var markerLat = marker.getLatLng().lat;
@@ -1402,6 +1414,24 @@
                 }
             });
             
+            // 출발지/도착지가 표시되는 구역에 있는지 확인
+            var shouldClearRoute = false;
+            if (startLocation && startLocation.district) {
+                if (visibleDistricts.indexOf(startLocation.district) === -1) {
+                    shouldClearRoute = true;
+                }
+            }
+            if (endLocation && endLocation.district) {
+                if (visibleDistricts.indexOf(endLocation.district) === -1) {
+                    shouldClearRoute = true;
+                }
+            }
+            
+            // 출발지/도착지가 표시되지 않는 구역에 있으면 경로 초기화
+            if (shouldClearRoute) {
+                clearRoute();
+            }
+            
             // 지역이 선택되지 않았으면 모든 마커 제거
             if (visibleDistricts.length === 0) {
                 clearBikeStationMarkers();
@@ -1667,7 +1697,7 @@
                     // 마커 아이콘 생성 (기본 스타일 유지)
                     var apiMarkerIcon = L.divIcon({
                         className: '',
-                        html: '<div class="bike-marker" style="filter: hue-rotate(200deg);"><div class="bike-marker__inner"></div></div>',
+                        html: '<div class="bike-marker"><div class="bike-marker__inner"></div></div>',
                         iconSize: [34, 44],
                         iconAnchor: [17, 42],
                         popupAnchor: [0, -36],
@@ -1701,6 +1731,19 @@
                     // 마커 클릭 시 패널에 정보 표시 및 길찾기 기능
                     .on('click', function(e) {
                         e.originalEvent.stopPropagation();
+                        
+                        // 클릭 애니메이션 효과 추가
+                        var iconElement = marker._icon;
+                        if (iconElement) {
+                            var markerDiv = iconElement.querySelector('.bike-marker');
+                            if (markerDiv) {
+                                markerDiv.classList.add('marker-clicked');
+                                setTimeout(function() {
+                                    markerDiv.classList.remove('marker-clicked');
+                                }, 400);
+                            }
+                        }
+                        
                         // 패널에 정보 표시
                         showStationInfo(stationName, row);
                         
@@ -2368,6 +2411,70 @@
             }
         }
         
+        /* ============================================
+           따릉이 요금 계산 함수
+           ============================================ */
+        /**
+         * 자전거 대여 요금 계산
+         * @param {number} duration - 대여 시간 (분)
+         * @returns {Object} 요금 정보 객체
+         */
+        function calculateBikeFare(duration) {
+            if (!duration || duration <= 0) {
+                return {
+                    dailyFare: 0,
+                    regularFare: 0,
+                    overTime: 0
+                };
+            }
+            
+            var dailyFare = 0; // 일일권 요금
+            var regularFare = 0; // 정기권 요금
+            var overTime = 0; // 초과 시간 (분)
+            
+            // 일일권 요금 계산 (1시간권 기준)
+            var dailyBaseTime = 60; // 기본 대여 시간: 1시간
+            var dailyBaseFare = 1000; // 기본 요금: 1,000원
+            
+            if (duration <= dailyBaseTime) {
+                // 기본 시간 이하: 기본 요금만
+                dailyFare = dailyBaseFare;
+                overTime = 0;
+            } else {
+                // 기본 시간 초과: 기본 요금 + 초과 시간 요금
+                dailyFare = dailyBaseFare;
+                overTime = duration - dailyBaseTime; // 기본 시간 초과분
+                // 초과 시간 요금 계산 (5분마다 200원)
+                var overTimeBlocks = Math.ceil(overTime / 5); // 5분 단위로 올림
+                var overTimeFare = overTimeBlocks * 200;
+                dailyFare += overTimeFare;
+            }
+            
+            // 정기권 요금 계산 (1시간권 기준)
+            var regularBaseTime = 60; // 기본 대여 시간: 1시간
+            var regularBaseFare = 3000; // 기본 요금: 3,000원
+            
+            if (duration <= regularBaseTime) {
+                // 기본 시간 이하: 기본 요금만
+                regularFare = regularBaseFare;
+                overTime = 0;
+            } else {
+                // 기본 시간 초과: 기본 요금 + 초과 시간 요금
+                regularFare = regularBaseFare;
+                overTime = duration - regularBaseTime; // 기본 시간 초과분
+                // 초과 시간 요금 계산 (5분마다 200원)
+                var overTimeBlocks = Math.ceil(overTime / 5); // 5분 단위로 올림
+                var overTimeFare = overTimeBlocks * 200;
+                regularFare += overTimeFare;
+            }
+            
+            return {
+                dailyFare: dailyFare,
+                regularFare: regularFare,
+                overTime: overTime
+            };
+        }
+        
         // 경로 계산 (OSRM API 사용)
         function calculateRoute(start, end) {
             var infoContent = document.getElementById('route-info-content');
@@ -2522,6 +2629,9 @@
                         }
                     }
                     
+                    // 요금 계산
+                    var fareInfo = calculateBikeFare(parseInt(duration));
+                    
                     // 경로 정보 표시
                     if (infoContent) {
                         infoContent.innerHTML = 
@@ -2541,7 +2651,17 @@
                             '<div class="route-info-item">' +
                             '<div class="route-info-label">예상 시간</div>' +
                             '<div class="route-info-value highlight">' + duration + ' 분</div>' +
-                            '</div>';
+                            '</div>' +
+                            '<div class="route-info-divider"></div>' +
+                            '<div class="route-info-item">' +
+                            '<div class="route-info-label">예상 요금 (일일권)</div>' +
+                            '<div class="route-info-value highlight">' + fareInfo.dailyFare.toLocaleString() + '원</div>' +
+                            '</div>' +
+                            '<div class="route-info-item">' +
+                            '<div class="route-info-label">예상 요금 (정기권)</div>' +
+                            '<div class="route-info-value highlight">' + fareInfo.regularFare.toLocaleString() + '원</div>' +
+                            '</div>' +
+                            (fareInfo.overTime > 0 ? '<div class="route-info-note">* 초과 시간: ' + fareInfo.overTime + '분 (5분마다 200원 추가)</div>' : '');
                         
                         // 경로 정보 섹션으로 스크롤 이동 (패널 하단으로)
                         setTimeout(function() {
