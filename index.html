@@ -516,11 +516,11 @@
                         pane: 'boundaryPane',
                         style: function(feature) {
                             return {
-                                color: '#ffb703',
+                                color: '#A8F368', // 연두색
                                 weight: 2,
                                 opacity: 0.9,
                                 fillOpacity: 0, // 기본 투명도 0
-                                fillColor: '#ffb703',
+                                fillColor: '#A8F368', // 연두색
                                 interactive: true
                             };
                         },
@@ -533,9 +533,9 @@
                                 // 기본 스타일 저장
                                 var defaultStyle = {
                                     fillOpacity: 0,
-                                    fillColor: '#ffb703',
+                                    fillColor: '#A8F368', // 연두색
                                     weight: 2,
-                                    color: '#ffb703'
+                                    color: '#A8F368' // 연두색
                                 };
                                 
                                 // 마우스 오버 이벤트
@@ -544,9 +544,9 @@
                                     highlightDistrict(districtName);
                                     layer.setStyle({
                                         fillOpacity: 0,
-                                        fillColor: '#4CAF50',
+                                        fillColor: '#F9035E', // 핑크색
                                         weight: 3,
-                                        color: '#4CAF50'
+                                        color: '#F9035E' // 핑크색
                                     });
                                 });
                                 
@@ -2844,7 +2844,7 @@
                 // 경로 polyline 생성 (그라디언트 애니메이션 적용)
                 try {
                     routeLayer = L.polyline(latlngs, {
-                        color: '#A8F368', // 기본 색상 (그라디언트로 덮어씀)
+                        color: '#F9035E', // 핑크색
                         weight: 5,
                         opacity: 0.8,
                         smoothFactor: 1,
@@ -2880,20 +2880,20 @@
                             gradient.setAttribute('y2', '0%');
                             gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
                             
-                            // 그라디언트 중지점 생성
+                            // 그라디언트 중지점 생성 (핑크색 계열)
                             var stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
                             stop1.setAttribute('offset', '0%');
-                            stop1.setAttribute('stop-color', '#A8F368');
+                            stop1.setAttribute('stop-color', '#F9035E');
                             stop1.setAttribute('stop-opacity', '1');
                             
                             var stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
                             stop2.setAttribute('offset', '50%');
-                            stop2.setAttribute('stop-color', '#F9035E');
+                            stop2.setAttribute('stop-color', '#FF6B9D');
                             stop2.setAttribute('stop-opacity', '1');
                             
                             var stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
                             stop3.setAttribute('offset', '100%');
-                            stop3.setAttribute('stop-color', '#A8F368');
+                            stop3.setAttribute('stop-color', '#F9035E');
                             stop3.setAttribute('stop-opacity', '1');
                             
                             // 그라디언트 애니메이션 (그라디언트가 경로를 따라 이동하는 효과)
@@ -3401,11 +3401,11 @@
             // 새 하이라이트 추가
             hoverHighlightLayer = L.geoJSON(districtFeatures[districtName], {
                 style: {
-                    color: '#4CAF50',
+                    color: '#F9035E', // 핑크색
                     weight: 3,
                     opacity: 0.9,
                     fillOpacity: 0,
-                    fillColor: '#4CAF50'
+                    fillColor: '#F9035E' // 핑크색
                 }
             }).addTo(map);
         }
