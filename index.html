@@ -22,48 +22,50 @@
 <body>
     <div id="map"></div>
 
-    <!-- 옵션 패널 -->
-    <div id="options-panel">
-        <div class="options-header" id="panel-header">
-            <h3>마커 옵션</h3>
-            <button id="toggle-panel" class="toggle-btn">−</button>
-        </div>
-        <div class="options-content">
-            <div class="option-group">
-                <div class="district-header" id="district-filter-header" style="cursor: pointer; user-select: none;">
-                    <span>구별 필터</span>
-                    <span class="district-toggle-icon" style="float: right; margin-left: 8px;">▶</span>
+    <!-- 통합 정보 패널 -->
+    <div id="info-panel">
+        <div class="info-panel-content">
+            <!-- 마커 옵션 섹션 -->
+            <div class="info-section">
+                <div class="section-header">
+                    <h4>마커 옵션</h4>
+                </div>
+                <div class="section-content">
+                    <div class="option-group">
+                        <div class="district-header" id="district-filter-header" style="cursor: pointer; user-select: none;">
+                            <span>구별 필터</span>
+                            <span class="district-toggle-icon" style="float: right; margin-left: 8px;">▶</span>
+                        </div>
+                        <div id="district-filters" class="district-filters" style="display: none;"></div>
+                    </div>
+                    <div class="option-group">
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 0;">
+                            <input type="checkbox" id="show-usage-view" style="margin-right: 8px;">
+                            <span>사용량 보기</span>
+                        </label>
+                    </div>
+                </div>
             </div>
-                <div id="district-filters" class="district-filters" style="display: none;"></div>
-            </div>
-            <div class="option-group">
-                <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 0;">
-                    <input type="checkbox" id="show-usage-view" style="margin-right: 8px;">
-                    <span>사용량 보기</span>
-                </label>
-            </div>
-        </div>
-    </div>
 
-    <!-- 경로 정보 팝업 패널 (좌측) -->
-    <div id="route-info-panel" class="route-info-panel">
-        <div class="route-info-header">
-            <h3>경로 정보</h3>
-            <button id="close-route-info" class="close-btn">×</button>
-        </div>
-        <div id="route-info-content" class="route-info-content">
-            <div class="route-info-placeholder">경로를 계산하면 정보가 표시됩니다.</div>
-        </div>
-    </div>
-    
-    <!-- 대여소 정보 패널 (우측 하단) -->
-    <div id="station-info-panel" class="station-info-panel">
-        <div class="station-info-header">
-            <h3>대여소 정보</h3>
-            <button id="close-station-info" class="close-btn">×</button>
-        </div>
-        <div id="station-info-content" class="station-info-content">
-            <div class="station-info-placeholder">마커를 클릭하거나 사용량 영역에 마우스를 올리면 정보가 표시됩니다.</div>
+            <!-- 대여소 정보 섹션 -->
+            <div class="info-section">
+                <div class="section-header">
+                    <h4>대여소 정보</h4>
+                </div>
+                <div id="station-info-content" class="section-content">
+                    <div class="station-info-placeholder">마커를 클릭하거나 사용량 영역에 마우스를 올리면 정보가 표시됩니다.</div>
+                </div>
+            </div>
+
+            <!-- 경로 정보 섹션 -->
+            <div class="info-section">
+                <div class="section-header">
+                    <h4>경로 정보</h4>
+                </div>
+                <div id="route-info-content" class="section-content">
+                    <div class="route-info-placeholder">경로를 계산하면 정보가 표시됩니다.</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -81,6 +83,10 @@
             crossorigin="anonymous"></script>
     
     <script>
+        /* ============================================
+           API 키 및 설정 변수
+           ============================================ */
+        
         // Google Maps API 키 설정 (선택사항)
         // Google Maps를 사용하려면 아래 주석을 해제하고 YOUR_API_KEY를 실제 키로 변경하세요
         // var GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY';
@@ -104,10 +110,16 @@
             'https://corsproxy.io/?',
             'https://cors-anywhere.herokuapp.com/'
         ];
-        var currentProxyIndex = 0;
+        var currentProxyIndex = 0; // 현재 사용 중인 프록시 인덱스
         var proxyFailures = {}; // 프록시별 실패 횟수 추적
         
+        /* ============================================
+           API 유틸리티 함수
+           ============================================ */
+        
         // API URL 생성 함수 (프록시 사용 여부에 따라 자동 처리)
+        // path: API 경로 (예: '/json/bikeList/1/1000')
+        // 반환: 프록시가 필요한 경우 프록시 URL, 아니면 원본 URL
         function getApiUrl(path) {
             var baseUrl = 'http://openapi.seoul.go.kr:8088/' + SEOUL_BIKE_API_KEY + path;
             // HTTPS 페이지에서 실행 중이면 프록시 사용
@@ -123,7 +135,8 @@
             return baseUrl;
         }
         
-        // 프록시 실패 시 다음 프록시로 전환
+        /* 프록시 실패 시 다음 프록시로 전환하는 함수
+           모든 프록시를 시도한 경우 처음부터 다시 시작 */
         function switchToNextProxy() {
             if (currentProxyIndex < CORS_PROXY_OPTIONS.length - 1) {
                 var oldProxy = CORS_PROXY_OPTIONS[currentProxyIndex];
@@ -137,7 +150,10 @@
             }
         }
         
-        // 타임아웃이 포함된 fetch 래퍼
+        /* 타임아웃이 포함된 fetch 래퍼 함수
+           url: 요청할 URL
+           timeout: 타임아웃 시간 (밀리초), 기본값 6000ms
+           반환: Promise<Response> */
         function fetchWithTimeout(url, timeout) {
             timeout = timeout || 6000; // 기본 6초 타임아웃 (더 빠른 실패 처리)
             return Promise.race([
@@ -242,7 +258,7 @@
                 "elementType": "all",
                 "stylers": [
                     {
-                        "color": "#f2f2f2"
+                        "color": "#000000"
                     }
                 ]
             },
@@ -251,7 +267,7 @@
                 "elementType": "geometry.fill",
                 "stylers": [
                     {
-                        "color": "#ffffff"
+                        "color": "#000000"
                     }
                 ]
             },
@@ -260,7 +276,7 @@
                 "elementType": "geometry.fill",
                 "stylers": [
                     {
-                        "color": "#ffffff"
+                        "color": "#000000"
                     }
                 ]
             },
@@ -388,8 +404,6 @@
 
         // 지도 초기화 (서울 중심, 서울 경계로 제한)
         var map = L.map('map', {
-            maxBounds: seoulBounds,
-            maxBoundsViscosity: 1.0,
             minZoom: 10,
             maxZoom: 40,
             zoomControl: true,
@@ -408,6 +422,10 @@
         var allMarkers = []; // 모든 마커 저장 (필터링용)
         var markersByDistrict = {}; // 구별 마커 저장
         var routeLayer = null; // 경로 표시 레이어
+        var routeBikeMarker = null; // 경로를 따라 이동하는 자전거 마커
+        var routeAnimationId = null; // 애니메이션 ID (중지용)
+        var routeCoordinates = []; // 경로 좌표 배열
+        var currentRouteIndex = 0; // 현재 경로 인덱스
         var startMarker = null; // 출발지 마커
         var endMarker = null; // 도착지 마커
         var startLocation = null; // 출발지 좌표
@@ -569,7 +587,7 @@
                     if (boundaryBounds.isValid()) {
                         var paddedBounds = boundaryBounds.pad(0.01);
                         map.fitBounds(paddedBounds);
-                        map.setMaxBounds(paddedBounds);
+                        // map.setMaxBounds(paddedBounds); // 위치 제한 제거
                         updateBaseTileLayer(paddedBounds);
                         applySeoulMask(seoulBoundaryPolygon, paddedBounds);
                     }
@@ -749,9 +767,9 @@
             }
 
             seoulMaskLayer = L.polygon([outer].concat(rings), {
-                color: '#f2f2f2',
+                color: '#000000',
                 weight: 0,
-                fillColor: '#f2f2f2',
+                fillColor: '#000000',
                 fillOpacity: 1,
                 interactive: false,
                 pane: 'maskPane'
@@ -885,8 +903,10 @@
                     if (lat && lng && !isNaN(lat) && !isNaN(lng) && 
                         lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
                         // Tooltip 내용 구성 (마우스 오버 시 표시)
-                        var tooltipContent = '<div style="font-weight: bold; margin-bottom: 3px;">' + 
-                            (location.FCLTY_NM || '자전거 대여소') + '</div>';
+                        var facilityName = location.FCLTY_NM || '자전거 대여소';
+                        // 대여소 이름에서 넘버링 제거
+                        facilityName = String(facilityName).replace(/^\d+\.\s*/, '').trim();
+                        var tooltipContent = '<div style="font-weight: bold; margin-bottom: 3px;">' + facilityName + '</div>';
                         if (location.SIGNGU_NM) {
                             tooltipContent += '<div style="font-size: 12px; color: #ddd;">' + location.SIGNGU_NM + '</div>';
                         }
@@ -908,8 +928,10 @@
                         // Popup 내용을 함수로 생성 (팝업이 열릴 때마다 최신 내용 생성)
                         marker.bindPopup(function() {
                             var popupContent = '<div class="info">';
-                            popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 8px;">' + 
-                                (location.FCLTY_NM || '자전거 대여소') + '</strong>';
+                            var facilityName = location.FCLTY_NM || '자전거 대여소';
+                            // 대여소 이름에서 넘버링 제거
+                            facilityName = String(facilityName).replace(/^\d+\.\s*/, '').trim();
+                            popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 8px;">' + facilityName + '</strong>';
                             
                             if (location.LCLAS_NM) {
                                 popupContent += '<div style="margin-bottom: 5px;"><span style="color: #666;">시설분류:</span> ' + 
@@ -964,7 +986,24 @@
                                 var markerLat = marker.getLatLng().lat;
                                 var markerLng = marker.getLatLng().lng;
                                 var markerName = location.FCLTY_NM || '자전거 대여소';
+                                // 대여소 이름에서 넘버링 제거
+                                markerName = String(markerName).replace(/^\d+\.\s*/, '').trim();
                                 var markerDistrict = district; // 구역 정보
+                                
+                                // 같은 위치인지 확인하는 함수
+                                function isSameLocation(loc1, loc2) {
+                                    if (!loc1 || !loc2) return false;
+                                    // 약 10미터 이내면 같은 위치로 간주
+                                    var latDiff = Math.abs(loc1.lat - loc2.lat);
+                                    var lngDiff = Math.abs(loc1.lng - loc2.lng);
+                                    return latDiff < 0.0001 && lngDiff < 0.0001;
+                                }
+                                
+                                // 출발지와 도착지가 모두 설정되어 있고, 클릭한 위치가 출발지와 같으면 경로 초기화
+                                if (startLocation && endLocation && isSameLocation(startLocation, {lat: markerLat, lng: markerLng})) {
+                                    clearRoute();
+                                    return;
+                                }
                                 
                                 // 출발지와 도착지가 모두 설정되어 있으면 기존 경로 초기화
                                 if (startLocation && endLocation) {
@@ -975,9 +1014,16 @@
                                 if (!startLocation) {
                                     setStartLocation(markerLat, markerLng, markerName, markerDistrict);
                                 }
-                                // 출발지가 있고 도착지가 없으면 도착지로 설정
+                                // 출발지가 있고 도착지가 없으면 도착지로 설정 (단, 같은 위치가 아닐 때만)
                                 else if (!endLocation) {
-                                    setEndLocation(markerLat, markerLng, markerName, markerDistrict);
+                                    // 출발지와 같은 위치가 아니면 도착지로 설정
+                                    if (!isSameLocation(startLocation, {lat: markerLat, lng: markerLng})) {
+                                        setEndLocation(markerLat, markerLng, markerName, markerDistrict);
+                                    }
+                                }
+                                // 출발지와 도착지가 모두 설정되어 있고, 클릭한 위치가 도착지와 같으면 경로 초기화
+                                else if (startLocation && endLocation && isSameLocation(endLocation, {lat: markerLat, lng: markerLng})) {
+                                    clearRoute();
                                 }
                             }, 50);
                         });
@@ -1158,10 +1204,26 @@
             
             // 이미 초기화되었으면 체크박스만 업데이트
             if (districtFilters.children.length === 0) {
-                seoulDistricts.forEach(function(district) {
+                seoulDistricts.forEach(function(district, index) {
                     var label = document.createElement('label');
                     label.className = 'district-checkbox';
-                    label.innerHTML = '<input type="checkbox" class="district-filter" data-district="' + district + '"> ' + district;
+                    
+                    // 체크박스 생성
+                    var checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'district-filter';
+                    checkbox.setAttribute('data-district', district);
+                    
+                    // 지역 이름에서 모든 넘버링 제거 (더 강력한 방법)
+                    var displayName = String(district);
+                    // 모든 가능한 넘버링 패턴 제거
+                    displayName = displayName.replace(/^[^가-힣]*/, ''); // 한글이 나오기 전의 모든 문자 제거
+                    displayName = displayName.trim();
+                    
+                    // 체크박스와 텍스트를 label에 추가
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(' ' + displayName));
+                    
                     districtFilters.appendChild(label);
                 });
                 
@@ -1195,120 +1257,7 @@
                 });
             }
             
-            // 패널 토글 버튼 이벤트 리스너 (중복 방지)
-            var togglePanel = document.getElementById('toggle-panel');
-            var newTogglePanel = togglePanel.cloneNode(true);
-            togglePanel.parentNode.replaceChild(newTogglePanel, togglePanel);
-            newTogglePanel.addEventListener('click', function(e) {
-                e.stopPropagation(); // 드래그 이벤트와 충돌 방지
-                var panel = document.getElementById('options-panel');
-                var content = document.querySelector('.options-content');
-                var btn = this;
-                
-                if (panel.classList.contains('collapsed')) {
-                    panel.classList.remove('collapsed');
-                    content.style.display = 'block';
-                    btn.textContent = '−';
-                } else {
-                    panel.classList.add('collapsed');
-                    content.style.display = 'none';
-                    btn.textContent = '+';
-                }
-            });
-            
-            // 패널 드래그 기능 추가
-            var panel = document.getElementById('options-panel');
-            var panelHeader = document.getElementById('panel-header');
-            var isDragging = false;
-            var currentX;
-            var currentY;
-            var initialX;
-            var initialY;
-            var xOffset = 0;
-            var yOffset = 0;
-            
-            // 드래그 시작 시 left로 전환
-            var isDraggable = false;
-            
-            function setInitialPosition() {
-                // 패널이 아직 렌더링되지 않았을 수 있으므로 약간의 지연
-                setTimeout(function() {
-                    if (!isDraggable) {
-                        // 초기 상태: 오른쪽 끝에 고정 (CSS의 right: 0 사용)
-                        panel.style.right = '0';
-                        panel.style.left = 'auto';
-                        yOffset = 20;
-                    }
-                }, 100);
-            }
-            setInitialPosition();
-            
-            // 창 크기 변경 시 위치 조정
-            window.addEventListener('resize', function() {
-                if (!isDragging) {
-                    var currentLeft = parseInt(panel.style.left) || 0;
-                    var maxX = window.innerWidth - panel.offsetWidth;
-                    if (currentLeft > maxX) {
-                        panel.style.left = Math.max(0, maxX) + 'px';
-                        xOffset = parseInt(panel.style.left);
-                    }
-                }
-            });
-            
-            panelHeader.addEventListener('mousedown', function(e) {
-                if (e.target.id === 'toggle-panel') {
-                    return; // 토글 버튼 클릭 시 드래그 방지
-                }
-                
-                // 첫 드래그 시 left로 전환
-                if (!isDraggable) {
-                    isDraggable = true;
-                    panel.classList.add('draggable');
-                    var panelRect = panel.getBoundingClientRect();
-                    xOffset = panelRect.left;
-                    yOffset = panelRect.top;
-                }
-                
-                initialX = e.clientX - xOffset;
-                initialY = e.clientY - yOffset;
-                
-                if (e.target === panelHeader || panelHeader.contains(e.target)) {
-                    isDragging = true;
-                    panelHeader.style.cursor = 'grabbing';
-                }
-            });
-            
-            document.addEventListener('mousemove', function(e) {
-                if (isDragging) {
-                    e.preventDefault();
-                    currentX = e.clientX - initialX;
-                    currentY = e.clientY - initialY;
-                    
-                    // 화면 경계 내에서만 이동 가능
-                    var maxX = window.innerWidth - panel.offsetWidth;
-                    var maxY = window.innerHeight - panel.offsetHeight;
-                    
-                    currentX = Math.max(0, Math.min(currentX, maxX));
-                    currentY = Math.max(0, Math.min(currentY, maxY));
-                    
-                    xOffset = currentX;
-                    yOffset = currentY;
-                    
-                    panel.style.left = currentX + 'px';
-                    panel.style.top = currentY + 'px';
-                    panel.style.right = 'auto';
-                }
-            });
-            
-            document.addEventListener('mouseup', function() {
-                if (isDragging) {
-                    isDragging = false;
-                    panelHeader.style.cursor = 'grab';
-                }
-            });
-            
-            // 헤더에 grab 커서 표시
-            panelHeader.style.cursor = 'grab';
+            // 패널 드래그 기능 제거 (화면 가장자리에 고정)
             
             // 자전거 대여소 정보 기능 초기화
             initBikeStations();
@@ -1687,7 +1636,7 @@
                         sizeClass = 'cluster-medium';
                     }
                     return L.divIcon({
-                        html: '<div class="bike-cluster ' + sizeClass + '" style="background: #0066cc;"><span>' + count + '</span></div>',
+                        html: '<div class="bike-cluster ' + sizeClass + '"><span>' + count + '</span></div>',
                         className: '',
                         iconSize: [48, 48],
                         iconAnchor: [24, 24]
@@ -1707,6 +1656,8 @@
                     
                     // 대여소 이름
                     var stationName = row.stationName || row.STATION_NAME || row.name || '자전거 대여소';
+                    // 대여소 이름에서 넘버링 제거 (예: "465.삼청공원 앞" -> "삼청공원 앞")
+                    stationName = String(stationName).replace(/^\d+\.\s*/, '').trim();
                     
                     // 거치율 계산
                     var parkingBikeCnt = parseFloat(row.parkingBikeTotCnt || row.PARKING_BIKE_TOT_CNT || row.parkingBikeTotalCnt || 0);
@@ -1761,6 +1712,21 @@
                             var markerName = stationName;
                             var markerDistrict = district;
                             
+                            // 같은 위치인지 확인하는 함수
+                            function isSameLocation(loc1, loc2) {
+                                if (!loc1 || !loc2) return false;
+                                // 약 10미터 이내면 같은 위치로 간주
+                                var latDiff = Math.abs(loc1.lat - loc2.lat);
+                                var lngDiff = Math.abs(loc1.lng - loc2.lng);
+                                return latDiff < 0.0001 && lngDiff < 0.0001;
+                            }
+                            
+                            // 출발지와 도착지가 모두 설정되어 있고, 클릭한 위치가 출발지와 같으면 경로 초기화
+                            if (startLocation && endLocation && isSameLocation(startLocation, {lat: markerLat, lng: markerLng})) {
+                                clearRoute();
+                                return;
+                            }
+                            
                             // 출발지와 도착지가 모두 설정되어 있으면 기존 경로 초기화
                             if (startLocation && endLocation) {
                                 clearRoute();
@@ -1770,9 +1736,16 @@
                             if (!startLocation) {
                                 setStartLocation(markerLat, markerLng, markerName, markerDistrict);
                             }
-                            // 출발지가 있고 도착지가 없으면 도착지로 설정
+                            // 출발지가 있고 도착지가 없으면 도착지로 설정 (단, 같은 위치가 아닐 때만)
                             else if (!endLocation) {
-                                setEndLocation(markerLat, markerLng, markerName, markerDistrict);
+                                // 출발지와 같은 위치가 아니면 도착지로 설정
+                                if (!isSameLocation(startLocation, {lat: markerLat, lng: markerLng})) {
+                                    setEndLocation(markerLat, markerLng, markerName, markerDistrict);
+                                }
+                            }
+                            // 출발지와 도착지가 모두 설정되어 있고, 클릭한 위치가 도착지와 같으면 경로 초기화
+                            else if (startLocation && endLocation && isSameLocation(endLocation, {lat: markerLat, lng: markerLng})) {
+                                clearRoute();
                             }
                         }, 50);
                     });
@@ -1834,20 +1807,20 @@
             var usageLevel = Math.floor(usageRate / 10); // 0~10 사이의 값
             var opacity = 0.2 + (usageLevel * 0.08); // 0.2 ~ 1.0 사이 (10단위당 0.08 증가)
             
-            // 거치율에 따라 색상 변경 (높을수록 빨간색, 낮을수록 초록색)
+            // 거치율에 따라 색상 변경 (높을수록 분홍색, 낮을수록 초록색)
             var r, g, b;
             if (usageRate >= 50) {
-                // 높은 거치율 (50% 이상): 빨간색 계열
+                // 높은 거치율 (50% 이상): 분홍색 계열 (#F9035E)
                 var intensity = (usageRate - 50) / 50; // 0~1 사이
-                r = 255;
-                g = Math.floor(255 * (1 - intensity));
-                b = Math.floor(255 * (1 - intensity));
+                r = Math.floor(249 + (6 * intensity)); // 249~255
+                g = Math.floor(3 - (3 * intensity)); // 3~0
+                b = Math.floor(94 - (94 * intensity)); // 94~0
             } else {
-                // 낮은 거치율 (50% 미만): 초록색 계열
+                // 낮은 거치율 (50% 미만): 초록색 계열 (#A8F368)
                 var intensity = usageRate / 50; // 0~1 사이
-                r = Math.floor(255 * intensity);
-                g = 255;
-                b = Math.floor(255 * intensity);
+                r = Math.floor(168 - (119 * intensity)); // 168~249
+                g = Math.floor(243 - (240 * intensity)); // 243~3
+                b = Math.floor(104 - (10 * intensity)); // 104~94
             }
             
             // 임의의 크기 (거치율에 따라 약간 변동)
@@ -1926,8 +1899,11 @@
         
         // 대여소 정보 팝업 내용 생성 (마커 팝업과 동일한 형식)
         function generateStationPopupContent(stationName, row) {
+            // 대여소 이름에서 넘버링 제거 (예: "465.삼청공원 앞" -> "삼청공원 앞")
+            var displayName = String(stationName).replace(/^\d+\.\s*/, '').trim();
+            
             var popupContent = '<div class="info">';
-            popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + stationName + '</strong>';
+            popupContent += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + displayName + '</strong>';
             
             // 제외할 필드 목록
             var excludeFields = {
@@ -2071,22 +2047,7 @@
                 });
             }
             
-            // 우측 패널 닫기 버튼
-            var closeBtn = document.getElementById('close-route-info');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', function() {
-                    // 경로 정보 패널을 닫을 때 지도에 표시된 경로도 함께 제거
-                    clearRoute();
-                });
-            }
-            
-            // 대여소 정보 패널 닫기 버튼
-            var closeStationBtn = document.getElementById('close-station-info');
-            if (closeStationBtn) {
-                closeStationBtn.addEventListener('click', function() {
-                    hideStationInfo();
-                });
-            }
+            // 통합 패널에서는 close 버튼이 없으므로 이벤트 리스너 제거
         }
         
         // 출발지 설정
@@ -2137,16 +2098,108 @@
             }
         }
         
+        // 거치율 원형 그리드 생성 함수
+        function createUsageGrid(usageRate) {
+            var usageNum = parseFloat(usageRate);
+            if (isNaN(usageNum)) return '';
+            
+            // 값이 1보다 작으면 퍼센테이지로 변환 (0.5 -> 50)
+            if (usageNum <= 1 && usageNum > 0) {
+                usageNum = usageNum * 100;
+            }
+            
+            // 20개 원으로 표시 (각 원은 5%를 나타냄)
+            var totalDots = 20;
+            var filledCount = Math.min(Math.round(usageNum / 5), 20); // 100%까지는 20개
+            var overCount = 0; // 100% 초과 개수
+            
+            if (usageNum > 100) {
+                filledCount = 20; // 100%까지는 모두 채움
+                overCount = Math.round((usageNum - 100) / 5); // 100% 초과분
+            }
+            
+            var grid = '';
+            
+            // 10x2 그리드 생성 (20개 원)
+            for (var i = 0; i < totalDots; i++) {
+                if (i < filledCount) {
+                    // 100% 이하: 주황색
+                    grid += '<div class="usage-dot usage-dot-filled"></div>';
+                } else {
+                    // 나머지는 회색
+                    grid += '<div class="usage-dot usage-dot-empty"></div>';
+                }
+            }
+            
+            // 100% 초과분은 분홍색으로 추가
+            if (overCount > 0) {
+                for (var i = 0; i < overCount; i++) {
+                    grid += '<div class="usage-dot usage-dot-over"></div>';
+                }
+            }
+            
+            return grid;
+        }
+        
         // 대여소 정보 패널에 정보 표시
         function showStationInfo(stationName, row) {
-            var infoPanel = document.getElementById('station-info-panel');
             var infoContent = document.getElementById('station-info-content');
             
-            if (!infoPanel || !infoContent) return;
+            if (!infoContent) return;
             
-            // 패널 내용 생성
-            var content = '<div class="info">';
-            content += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + stationName + '</strong>';
+            // 대여소 이름에서 넘버링 제거 (예: "465.삼청공원 앞" -> "삼청공원 앞")
+            var displayName = String(stationName).replace(/^\d+\.\s*/, '').trim();
+            
+            // 주요 데이터 추출
+            var parkingBikeCnt = parseFloat(row.parkingBikeTotCnt || row.PARKING_BIKE_TOT_CNT || row.parkingBikeTotalCnt || 0);
+            var rackTotCnt = parseFloat(row.rackTotCnt || row.RACK_TOT_CNT || row.rackTotalCnt || 0);
+            var usageRate = rackTotCnt > 0 ? (parkingBikeCnt / rackTotCnt) * 100 : 0;
+            var address = row.address || row.ADDRESS || '';
+            var district = row.district || row.SIGNGU_NM || row.gu || '';
+            
+            // 패널 내용 생성 - 기하학적 그리드 디자인
+            var content = '<div class="station-info-modern">';
+            
+            // 헤더 - 큰 원형 요소와 텍스트
+            content += '<div class="station-header-minimal">';
+            content += '<div class="header-circle header-circle-main"></div>';
+            content += '<h2 class="station-name-title-minimal">' + displayName + '</h2>';
+            if (district) {
+                content += '<div class="station-location-minimal">' + district + '</div>';
+            }
+            content += '</div>';
+            
+            // 현재 자전거 수와 거치대 수를 나란히 배치
+            content += '<div class="count-info-container">';
+            // 현재 자전거 수 (큰 타이포 스타일)
+            content += '<div class="bike-count-section">';
+            content += '<div class="bike-count-value">' + parkingBikeCnt.toLocaleString() + '<span class="unit-text">대</span></div>';
+            content += '<div class="bike-count-label">현재 자전거</div>';
+            content += '</div>';
+            
+            // 거치대 수 (작은 스타일)
+            content += '<div class="rack-count-section">';
+            content += '<div class="rack-count-value">' + rackTotCnt.toLocaleString() + '<span class="unit-text">대</span></div>';
+            content += '<div class="rack-count-label">거치대</div>';
+            content += '</div>';
+            content += '</div>';
+            
+            // 거치율 시각화 (원형 그리드)
+            content += '<div class="usage-grid-section">';
+            content += '<div class="usage-grid-header">';
+            content += '<div class="usage-grid-percentage">' + usageRate.toFixed(0) + '%</div>';
+            content += '<div class="usage-grid-description">현재 자전거 / 거치대</div>';
+            content += '</div>';
+            content += '<div class="usage-grid-container">' + createUsageGrid(usageRate) + '</div>';
+            content += '</div>';
+            
+            // 주소 정보 (미니멀한 스타일)
+            if (address) {
+                content += '<div class="address-section-minimal">';
+                content += '<div class="address-label-minimal">ADDRESS</div>';
+                content += '<div class="address-value-minimal">' + address + '</div>';
+                content += '</div>';
+            }
             
             // 제외할 필드 목록
             var excludeFields = {
@@ -2155,21 +2208,23 @@
                 'stationName': true, 'STATION_NAME': true, 'name': true,
                 'rackTotCnt': true, 'RACK_TOT_CNT': true, 'rackTotalCnt': true,
                 'parkingTotal': true, 'totalParking': true,
-                'stationId': true, 'STATION_ID': true
+                'stationId': true, 'STATION_ID': true,
+                'parkingBikeTotCnt': true, 'PARKING_BIKE_TOT_CNT': true, 'parkingBikeTotalCnt': true,
+                'shared': true, 'SHARED': true,
+                'address': true, 'ADDRESS': true,
+                'district': true, 'SIGNGU_NM': true, 'gu': true
             };
             
-            // 모든 필드를 동적으로 표시
-            var hasData = false;
-            var fieldOrder = [];
-            var fieldValues = {};
+            // 추가 정보 필드
+            var hasAdditionalData = false;
+            var additionalFields = [];
             
             for (var key in row) {
                 if (row.hasOwnProperty(key) && !excludeFields[key]) {
                     var value = row[key];
                     if (value !== null && value !== undefined && value !== '') {
-                        fieldOrder.push(key);
-                        fieldValues[key] = value;
-                        hasData = true;
+                        additionalFields.push({key: key, value: value});
+                        hasAdditionalData = true;
                     }
                 }
             }
@@ -2214,140 +2269,89 @@
                 return String(value);
             }
             
-            // 필드를 표시
-            if (hasData) {
-                fieldOrder.forEach(function(key) {
-                    var label = getFieldLabel(key);
-                    var value = formatValue(key, fieldValues[key]);
-                    
-                    content += '<div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;">';
-                    content += '<span style="color: #666; font-size: 12px; display: inline-block; min-width: 100px;">' + label + ':</span> ';
-                    content += '<span style="color: #333; font-size: 13px; font-weight: 500;">' + value + '</span>';
-                    content += '</div>';
-                });
-            } else {
-                content += '<div style="color: #999; font-size: 12px;">추가 정보가 없습니다.</div>';
-            }
-            
-            content += '</div>';
-            
-            // 패널 내용 업데이트 및 표시
-            infoContent.innerHTML = content;
-            infoPanel.classList.add('visible');
-        }
-        
-        // 대여소 정보 패널 숨김
-        function hideStationInfo() {
-            var infoPanel = document.getElementById('station-info-panel');
-            if (infoPanel) {
-                infoPanel.classList.remove('visible');
-            }
-        }
-        
-        // 대여소 정보 패널에 정보 표시
-        function showStationInfo(stationName, row) {
-            var infoPanel = document.getElementById('station-info-panel');
-            var infoContent = document.getElementById('station-info-content');
-            
-            if (!infoPanel || !infoContent) return;
-            
-            // 패널 내용 생성
-            var content = '<div class="info">';
-            content += '<strong style="font-size: 16px; display: block; margin-bottom: 12px;">' + stationName + '</strong>';
-            
-            // 제외할 필드 목록
-            var excludeFields = {
-                'lat': true, 'LAT': true, 'stationLatitude': true, 'latitude': true,
-                'lng': true, 'LNG': true, 'stationLongitude': true, 'longitude': true,
-                'stationName': true, 'STATION_NAME': true, 'name': true,
-                'rackTotCnt': true, 'RACK_TOT_CNT': true, 'rackTotalCnt': true,
-                'parkingTotal': true, 'totalParking': true,
-                'stationId': true, 'STATION_ID': true
-            };
-            
-            // 모든 필드를 동적으로 표시
-            var hasData = false;
-            var fieldOrder = [];
-            var fieldValues = {};
-            
-            for (var key in row) {
-                if (row.hasOwnProperty(key) && !excludeFields[key]) {
-                    var value = row[key];
-                    if (value !== null && value !== undefined && value !== '') {
-                        fieldOrder.push(key);
-                        fieldValues[key] = value;
-                        hasData = true;
-                    }
-                }
-            }
-            
-            // 필드명을 한글이나 의미있는 이름으로 변환하는 함수
-            function getFieldLabel(key) {
-                if (/[가-힣]/.test(key)) {
-                    return key;
+            // 자전거 아이콘 생성 함수 (다른 곳에서 사용할 수 있으므로 유지)
+            function createBikeIcons(usageRate) {
+                // 문자열에서 숫자만 추출 (예: "50%" -> 50)
+                var usageNum = parseFloat(String(usageRate).replace(/[^0-9.-]/g, ''));
+                if (isNaN(usageNum)) return '';
+                
+                // 값이 1보다 작으면 퍼센테이지로 변환 (0.5 -> 50)
+                if (usageNum <= 1 && usageNum > 0) {
+                    usageNum = usageNum * 100;
                 }
                 
-                var fieldMap = {
-                    'parkingBikeTotCnt': '현재 자전거 수',
-                    'PARKING_BIKE_TOT_CNT': '현재 자전거 수',
-                    'parkingBikeTotalCnt': '현재 자전거 수',
-                    'shared': '거치율',
-                    'SHARED': '거치율',
-                    'address': '주소',
-                    'ADDRESS': '주소',
-                    'district': '시군구',
-                    'SIGNGU_NM': '시군구',
-                    'gu': '구',
-                    'stationLatitude': '위도',
-                    'stationLongitude': '경도',
-                    'stationName': '대여소명',
-                    'STATION_NAME': '대여소명'
-                };
+                var icons = '';
+                var greenCount = 0;
+                var pinkCount = 0;
                 
-                return fieldMap[key] || key;
-            }
-            
-            // 값 포맷팅 함수
-            function formatValue(key, value) {
-                if (typeof value === 'number' || (!isNaN(value) && value !== '')) {
-                    var numValue = parseFloat(value);
-                    if (!isNaN(numValue)) {
-                        if (numValue % 1 === 0) {
-                            return numValue.toLocaleString();
+                if (usageNum <= 100) {
+                    // 100 이하: 초록색 아이콘 개수 = 거치율 / 10 (반올림)
+                    greenCount = Math.round(usageNum / 10);
+                    // 나머지는 회색
+                    for (var i = 0; i < 10; i++) {
+                        if (i < greenCount) {
+                            icons += '<span class="bike-icon bike-icon-green">🚲</span>';
+                        } else {
+                            icons += '<span class="bike-icon bike-icon-gray">🚲</span>';
                         }
-                        return numValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                    }
+                } else {
+                    // 100 초과: 초록색 10개 + 분홍색 추가
+                    greenCount = 10;
+                    pinkCount = Math.round((usageNum - 100) / 10);
+                    
+                    // 초록색 10개
+                    for (var i = 0; i < 10; i++) {
+                        icons += '<span class="bike-icon bike-icon-green">🚲</span>';
+                    }
+                    // 분홍색 추가
+                    for (var i = 0; i < pinkCount; i++) {
+                        icons += '<span class="bike-icon bike-icon-pink">🚲</span>';
                     }
                 }
-                return String(value);
+                
+                return '<span class="bike-icons-container">' + icons + '</span>';
             }
             
-            // 필드를 표시
-            if (hasData) {
-                fieldOrder.forEach(function(key) {
-                    var label = getFieldLabel(key);
-                    var value = formatValue(key, fieldValues[key]);
-                    
-                    content += '<div style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0;">';
-                    content += '<span style="color: #666; font-size: 12px; display: inline-block; min-width: 100px;">' + label + ':</span> ';
-                    content += '<span style="color: #333; font-size: 13px; font-weight: 500;">' + value + '</span>';
+            // 추가 정보 표시
+            if (hasAdditionalData) {
+                content += '<div class="additional-info-section">';
+                content += '<div class="additional-info-title">추가 정보</div>';
+                additionalFields.forEach(function(field) {
+                    var label = getFieldLabel(field.key);
+                    var value = formatValue(field.key, field.value);
+                    content += '<div class="additional-info-item">';
+                    content += '<span class="additional-info-label">' + label + '</span>';
+                    content += '<span class="additional-info-value">' + value + '</span>';
                     content += '</div>';
                 });
-            } else {
-                content += '<div style="color: #999; font-size: 12px;">추가 정보가 없습니다.</div>';
+                content += '</div>';
             }
             
             content += '</div>';
             
-            // 패널 내용 업데이트 및 표시
+            // 패널 내용 업데이트
             infoContent.innerHTML = content;
-            infoPanel.classList.add('visible');
+            
+            // 대여소 정보 섹션으로 스크롤
+            var stationSection = infoContent.closest('.info-section');
+            if (stationSection) {
+                var panelContent = document.querySelector('.info-panel-content');
+                if (panelContent) {
+                    var sectionTop = stationSection.offsetTop;
+                    panelContent.scrollTo({
+                        top: sectionTop - 20,
+                        behavior: 'smooth'
+                    });
+                }
+            }
         }
         
-        // 대여소 정보 패널 숨김
+        // 대여소 정보 패널 숨김 (통합 패널에서는 내용만 초기화)
         function hideStationInfo() {
-            var infoPanel = document.getElementById('station-info-panel');
-            if (infoPanel) {
-                infoPanel.classList.remove('visible');
+            var infoContent = document.getElementById('station-info-content');
+            if (infoContent) {
+                infoContent.innerHTML = '<div class="station-info-placeholder">마커를 클릭하거나 사용량 영역에 마우스를 올리면 정보가 표시됩니다.</div>';
             }
         }
         
@@ -2366,13 +2370,7 @@
         
         // 경로 계산 (OSRM API 사용)
         function calculateRoute(start, end) {
-            var infoPanel = document.getElementById('route-info-panel');
             var infoContent = document.getElementById('route-info-content');
-            
-            // 우측 패널 표시
-            if (infoPanel) {
-                infoPanel.classList.add('visible');
-            }
             
             // 로딩 메시지 표시
             if (infoContent) {
@@ -2381,9 +2379,12 @@
             
             // OSRM API 엔드포인트 (도보 경로)
             // OSRM의 foot 프로필은 도보 경로를 우선합니다
+            // geometries=geojson으로 GeoJSON 형식 좌표 요청 ([lng, lat] 형식)
             var osrmUrl = 'https://router.project-osrm.org/route/v1/foot/' + 
                 start.lng + ',' + start.lat + ';' + end.lng + ',' + end.lat + 
                 '?overview=full&geometries=geojson&alternatives=false&steps=false';
+            
+            console.log('OSRM URL:', osrmUrl);
             
             // GraphHopper API 사용 (선택사항 - API 키가 있는 경우)
             var useGraphHopper = typeof GRAPHHOPPER_API_KEY !== 'undefined' && 
@@ -2433,7 +2434,25 @@
                     } else if (!useGraphHopper && data.code === 'Ok' && data.routes && data.routes.length > 0) {
                         // OSRM 응답 처리
                         route = data.routes[0];
-                        geometry = route.geometry;
+                        
+                        console.log('OSRM 전체 응답 data:', data);
+                        console.log('OSRM route 객체:', route);
+                        console.log('OSRM route.geometry:', route.geometry);
+                        
+                        // OSRM API는 geometries=geojson일 때 GeoJSON 형식으로 반환
+                        // route.geometry는 GeoJSON LineString 객체: { type: 'LineString', coordinates: [[lng, lat], ...] }
+                        if (route.geometry && route.geometry.type === 'LineString' && route.geometry.coordinates) {
+                            geometry = route.geometry;
+                            console.log('OSRM geometry (LineString) 확인됨');
+                            console.log('OSRM geometry.coordinates 길이:', geometry.coordinates.length);
+                            console.log('OSRM geometry.coordinates 샘플 (처음 3개):', geometry.coordinates.slice(0, 3));
+                        } else {
+                            console.error('OSRM 응답에서 geometry를 찾을 수 없습니다!');
+                            console.log('route.geometry:', route.geometry);
+                            console.log('route 전체 구조:', Object.keys(route));
+                            throw new Error('경로 좌표를 찾을 수 없습니다.');
+                        }
+                        
                         distance = (route.distance / 1000).toFixed(2); // km
                         // 자전거 평균 속도로 시간 재계산 (약 15km/h)
                         // OSRM의 foot duration이 정확하지 않을 수 있으므로 거리 기반으로 계산
@@ -2441,11 +2460,67 @@
                         var distanceKm = parseFloat(distance);
                         duration = Math.round((distanceKm / bikeSpeedKmh) * 60); // 분으로 변환
                     } else {
+                        console.error('OSRM 응답 오류:', data);
                         throw new Error('경로를 찾을 수 없습니다.');
                     }
                     
-                    // 경로 표시
-                    displayRoute(geometry, route);
+                    // 경로 데이터 검증
+                    console.log('경로 계산 완료, displayRoute 호출');
+                    console.log('geometry:', geometry);
+                    console.log('geometry.coordinates:', geometry ? geometry.coordinates : '없음');
+                    console.log('geometry.coordinates 길이:', geometry && geometry.coordinates ? geometry.coordinates.length : 0);
+                    
+                    // geometry 객체 검증 (단계별로 상세하게)
+                    if (!geometry) {
+                        console.error('❌ geometry 객체가 없습니다!');
+                        if (infoContent) {
+                            infoContent.innerHTML = '<div class="route-info-error">경로 geometry를 가져올 수 없습니다.</div>';
+                        }
+                        return;
+                    }
+                    
+                    // geometry.coordinates 존재 여부 확인
+                    if (!geometry.coordinates) {
+                        console.error('❌ geometry.coordinates가 없습니다!');
+                        console.error('geometry 객체 전체:', JSON.stringify(geometry, null, 2));
+                        console.error('geometry의 키들:', Object.keys(geometry));
+                        if (infoContent) {
+                            infoContent.innerHTML = '<div class="route-info-error">경로 좌표를 가져올 수 없습니다.</div>';
+                        }
+                        return;
+                    }
+                    
+                    // geometry.coordinates가 배열인지 확인
+                    if (!Array.isArray(geometry.coordinates)) {
+                        console.error('❌ geometry.coordinates가 배열이 아닙니다!');
+                        console.error('geometry.coordinates 타입:', typeof geometry.coordinates);
+                        console.error('geometry.coordinates 값:', geometry.coordinates);
+                        if (infoContent) {
+                            infoContent.innerHTML = '<div class="route-info-error">경로 좌표 형식이 올바르지 않습니다.</div>';
+                        }
+                        return;
+                    }
+                    
+                    // geometry.coordinates가 비어있는지 확인
+                    if (geometry.coordinates.length === 0) {
+                        console.error('❌ geometry.coordinates가 비어있습니다!');
+                        if (infoContent) {
+                            infoContent.innerHTML = '<div class="route-info-error">경로 좌표가 비어있습니다.</div>';
+                        }
+                        return;
+                    }
+                    
+                    console.log('✅ 경로 좌표 검증 통과! 좌표 개수:', geometry.coordinates.length);
+                    
+                    // 경로 표시 (에러 처리 추가)
+                    try {
+                        displayRoute(geometry, route);
+                    } catch (error) {
+                        console.error('displayRoute 실행 중 오류:', error);
+                        if (infoContent) {
+                            infoContent.innerHTML = '<div class="route-info-error">경로 표시 중 오류가 발생했습니다: ' + error.message + '</div>';
+                        }
+                    }
                     
                     // 경로 정보 표시
                     if (infoContent) {
@@ -2467,6 +2542,18 @@
                             '<div class="route-info-label">예상 시간</div>' +
                             '<div class="route-info-value highlight">' + duration + ' 분</div>' +
                             '</div>';
+                        
+                        // 경로 정보 섹션으로 스크롤 이동 (패널 하단으로)
+                        setTimeout(function() {
+                            var panelContent = document.querySelector('.info-panel-content');
+                            if (panelContent) {
+                                // 패널의 스크롤을 맨 아래로 이동
+                                panelContent.scrollTo({
+                                    top: panelContent.scrollHeight,
+                                    behavior: 'smooth'
+                                });
+                            }
+                        }, 100);
                     }
                 })
                 .catch(function(error) {
@@ -2479,31 +2566,505 @@
         
         // 경로 표시
         function displayRoute(geometry, route) {
-            // 기존 경로 제거
-            if (routeLayer) {
-                map.removeLayer(routeLayer);
+            try {
+                console.log('=== displayRoute 함수 호출됨 ===');
+                console.log('geometry:', geometry);
+                console.log('route:', route);
+                
+                // geometry 검증
+                if (!geometry) {
+                    console.error('geometry가 없습니다!');
+                    return;
+                }
+                
+                // coordinates 검증 및 추출
+                var coordinates = null;
+                
+                console.log('좌표 추출 시도 - geometry:', geometry);
+                console.log('좌표 추출 시도 - route:', route);
+                console.log('geometry.type:', geometry ? geometry.type : '없음');
+                console.log('geometry.coordinates 존재:', geometry && geometry.coordinates ? '있음' : '없음');
+                console.log('geometry.coordinates 타입:', geometry && geometry.coordinates ? typeof geometry.coordinates : '없음');
+                console.log('geometry.coordinates 배열 여부:', geometry && geometry.coordinates ? Array.isArray(geometry.coordinates) : '없음');
+                
+                // 1. geometry.coordinates 확인 (OSRM의 경우 이것이 가장 일반적)
+                if (geometry && geometry.coordinates && Array.isArray(geometry.coordinates) && geometry.coordinates.length > 0) {
+                    coordinates = geometry.coordinates;
+                    console.log('geometry.coordinates에서 좌표 추출 성공:', coordinates.length);
+                    console.log('첫 번째 좌표 샘플:', coordinates[0]);
+                } 
+                // 2. route.geometry.coordinates 확인
+                else if (route && route.geometry) {
+                    console.log('route.geometry 확인:', route.geometry);
+                    if (route.geometry.coordinates && Array.isArray(route.geometry.coordinates) && route.geometry.coordinates.length > 0) {
+                        coordinates = route.geometry.coordinates;
+                        console.log('route.geometry.coordinates에서 좌표 추출 성공:', coordinates.length);
+                    } else if (route.geometry.type === 'LineString' && route.geometry.coordinates) {
+                        coordinates = route.geometry.coordinates;
+                        console.log('route.geometry (LineString)에서 좌표 추출 성공:', coordinates.length);
+                    }
+                }
+                // 3. OSRM의 경우 legs에서 좌표 추출 (steps=false일 때는 사용 불가)
+                else if (route && route.legs && route.legs.length > 0) {
+                    console.log('route.legs 확인, legs 개수:', route.legs.length);
+                    coordinates = [];
+                    route.legs.forEach(function(leg) {
+                        if (leg.steps) {
+                            leg.steps.forEach(function(step) {
+                                if (step.geometry && step.geometry.coordinates) {
+                                    if (Array.isArray(step.geometry.coordinates[0])) {
+                                        coordinates = coordinates.concat(step.geometry.coordinates);
+                                    } else {
+                                        coordinates.push(step.geometry.coordinates);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    if (coordinates.length > 0) {
+                        console.log('route.legs에서 좌표 추출 성공:', coordinates.length);
+                    } else {
+                        console.warn('route.legs에서 좌표를 찾을 수 없습니다.');
+                    }
+                }
+                
+                if (!coordinates || !Array.isArray(coordinates) || coordinates.length === 0) {
+                    console.error('경로 좌표를 찾을 수 없습니다!');
+                    console.error('geometry 전체:', JSON.stringify(geometry, null, 2));
+                    console.error('route 전체:', JSON.stringify(route, null, 2));
+                    console.error('geometry.coordinates:', geometry ? geometry.coordinates : '없음');
+                    console.error('route.geometry:', route ? route.geometry : '없음');
+                    return;
+                }
+                
+                console.log('좌표 추출 성공! 좌표 개수:', coordinates.length);
+                console.log('첫 번째 좌표:', coordinates[0]);
+                console.log('마지막 좌표:', coordinates[coordinates.length - 1]);
+                
+                console.log('추출된 좌표 개수:', coordinates.length);
+                console.log('첫 번째 좌표:', coordinates[0]);
+                
+                // 기존 경로 제거
+                if (routeLayer) {
+                    try {
+                        map.removeLayer(routeLayer);
+                    } catch (e) {
+                        console.warn('기존 경로 제거 중 오류:', e);
+                    }
+                }
+                
+                // 기존 자전거 애니메이션 중지
+                stopRouteAnimation();
+                
+                // GeoJSON 형식의 좌표를 Leaflet 형식으로 변환
+                // OSRM은 geometries=geojson일 때 [lng, lat] 형식으로 반환
+                console.log('좌표 변환 시작, 원본 좌표 샘플:', coordinates.slice(0, 3));
+                
+                var latlngs = coordinates.map(function(coord, index) {
+                    // coord가 [lng, lat] 형식인지 [lat, lng] 형식인지 확인
+                    if (Array.isArray(coord) && coord.length >= 2) {
+                        var first = coord[0];
+                        var second = coord[1];
+                        
+                        // 유효한 좌표 범위 확인
+                        if (typeof first !== 'number' || typeof second !== 'number' || 
+                            isNaN(first) || isNaN(second)) {
+                            if (index < 3) {
+                                console.warn('유효하지 않은 좌표 (인덱스 ' + index + '):', coord);
+                            }
+                            return null;
+                        }
+                        
+                        // OSRM GeoJSON은 [lng, lat] 형식이므로, 첫 번째 값이 경도 범위인지 확인
+                        // 서울 지역: 경도 약 126-127, 위도 약 37-38
+                        if (first >= -180 && first <= 180 && second >= -90 && second <= 90) {
+                            // 첫 번째 값이 경도 범위이고, 서울 지역 좌표인 경우 [lng, lat] 형식으로 판단
+                            if (first >= 120 && first <= 140 && second >= 30 && second <= 45) {
+                                // [lng, lat] 형식이면 [lat, lng]로 변환
+                                return [second, first];
+                            } else if (first >= -180 && first <= 180) {
+                                // 일반적으로 GeoJSON은 [lng, lat] 형식
+                                return [second, first];
+                            }
+                        }
+                        
+                        // 이미 [lat, lng] 형식인 경우 (위도가 첫 번째)
+                        if (first >= -90 && first <= 90 && second >= -180 && second <= 180) {
+                            return [first, second];
+                        }
+                        
+                        if (index < 3) {
+                            console.warn('좌표 형식을 판단할 수 없음 (인덱스 ' + index + '):', coord);
+                        }
+                    }
+                    return null;
+                }).filter(function(coord) {
+                    if (coord === null) return false;
+                    // 유효한 좌표 범위 확인
+                    var isValid = coord[0] >= -90 && coord[0] <= 90 && 
+                                  coord[1] >= -180 && coord[1] <= 180;
+                    if (!isValid && coord) {
+                        console.warn('유효하지 않은 좌표 범위:', coord);
+                    }
+                    return isValid;
+                });
+                
+                console.log('좌표 변환 완료, 변환된 좌표 샘플:', latlngs.slice(0, 3));
+                
+                console.log('변환된 좌표 개수:', latlngs.length);
+                if (latlngs.length > 0) {
+                    console.log('첫 번째 변환된 좌표:', latlngs[0]);
+                }
+                
+                if (latlngs.length === 0) {
+                    console.error('변환된 좌표가 없습니다!');
+                    return;
+                }
+                
+                // 경로 polyline 생성 (그라디언트 애니메이션 적용)
+                try {
+                    routeLayer = L.polyline(latlngs, {
+                        color: '#A8F368', // 기본 색상 (그라디언트로 덮어씀)
+                        weight: 5,
+                        opacity: 0.8,
+                        smoothFactor: 1,
+                        pane: 'overlayPane', // 경로 라인은 overlayPane에 배치
+                        className: 'route-line-gradient' // 그라디언트 클래스 추가
+                    }).addTo(map);
+                    
+                    console.log('경로 라인 생성됨:', routeLayer);
+                    
+                    // SVG 그라디언트 정의 추가 (경로 라인에 그라디언트 애니메이션 적용)
+                    setTimeout(function() {
+                        var svg = map.getRenderer(routeLayer).container;
+                        if (svg && svg.querySelector) {
+                            // 기존 gradient 제거
+                            var existingGradient = svg.querySelector('#routeGradient');
+                            if (existingGradient) {
+                                existingGradient.remove();
+                            }
+                            
+                            // SVG defs 요소 찾기 또는 생성
+                            var defs = svg.querySelector('defs');
+                            if (!defs) {
+                                defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                                svg.insertBefore(defs, svg.firstChild);
+                            }
+                            
+                            // 그라디언트 정의 생성 (애니메이션 효과 포함)
+                            var gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+                            gradient.setAttribute('id', 'routeGradient');
+                            gradient.setAttribute('x1', '0%');
+                            gradient.setAttribute('y1', '0%');
+                            gradient.setAttribute('x2', '100%');
+                            gradient.setAttribute('y2', '0%');
+                            gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+                            
+                            // 그라디언트 중지점 생성
+                            var stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                            stop1.setAttribute('offset', '0%');
+                            stop1.setAttribute('stop-color', '#A8F368');
+                            stop1.setAttribute('stop-opacity', '1');
+                            
+                            var stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                            stop2.setAttribute('offset', '50%');
+                            stop2.setAttribute('stop-color', '#F9035E');
+                            stop2.setAttribute('stop-opacity', '1');
+                            
+                            var stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                            stop3.setAttribute('offset', '100%');
+                            stop3.setAttribute('stop-color', '#A8F368');
+                            stop3.setAttribute('stop-opacity', '1');
+                            
+                            // 그라디언트 애니메이션 (그라디언트가 경로를 따라 이동하는 효과)
+                            var animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+                            animate.setAttribute('attributeName', 'x1');
+                            animate.setAttribute('values', '0%;100%;0%');
+                            animate.setAttribute('dur', '3s');
+                            animate.setAttribute('repeatCount', 'indefinite');
+                            gradient.appendChild(animate);
+                            
+                            var animate2 = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+                            animate2.setAttribute('attributeName', 'x2');
+                            animate2.setAttribute('values', '100%;200%;100%');
+                            animate2.setAttribute('dur', '3s');
+                            animate2.setAttribute('repeatCount', 'indefinite');
+                            gradient.appendChild(animate2);
+                            
+                            gradient.appendChild(stop1);
+                            gradient.appendChild(stop2);
+                            gradient.appendChild(stop3);
+                            defs.appendChild(gradient);
+                            
+                            // 경로 라인의 path 요소에 그라디언트 적용
+                            var path = routeLayer._path;
+                            if (path) {
+                                path.setAttribute('stroke', 'url(#routeGradient)');
+                                path.setAttribute('stroke-width', '5');
+                                path.setAttribute('stroke-opacity', '0.8');
+                                path.setAttribute('fill', 'none');
+                                path.setAttribute('stroke-linecap', 'round');
+                                path.setAttribute('stroke-linejoin', 'round');
+                            }
+                            
+                            console.log('경로 라인 그라디언트 애니메이션 적용 완료');
+                        }
+                    }, 100);
+                    
+                    // 경로 라인에서 좌표 추출 (네이게이션 경로 라인 활용)
+                    var routeLatLngs = routeLayer.getLatLngs();
+                    console.log('경로 라인에서 추출한 좌표 개수:', routeLatLngs.length);
+                    
+                    // 경로 좌표 저장 (경로 라인에서 직접 가져온 좌표 사용)
+                    routeCoordinates = routeLatLngs.map(function(latlng) {
+                        return [latlng.lat, latlng.lng];
+                    });
+                    currentRouteIndex = 0;
+                    
+                    console.log('routeCoordinates 저장됨 (경로 라인에서 추출), 길이:', routeCoordinates.length);
+                    console.log('routeCoordinates 첫 번째 좌표:', routeCoordinates[0]);
+                    
+                    // 경로 좌표가 있는지 다시 확인
+                    if (!routeCoordinates || routeCoordinates.length === 0) {
+                        console.error('routeCoordinates가 비어있습니다!');
+                        return;
+                    }
+                    
+                    // 경로에 맞게 지도 범위 조정
+                    try {
+                        var bounds = routeLayer.getBounds();
+                        if (bounds && bounds.isValid()) {
+                            map.fitBounds(bounds, { padding: [50, 50] });
+                        }
+                    } catch (e) {
+                        console.warn('지도 범위 조정 중 오류:', e);
+                    }
+                } catch (e) {
+                    console.error('경로 라인 생성 중 오류:', e);
+                    throw e;
+                }
+                
+                // 자전거 애니메이션 시작 (경로 라인을 따라 이동)
+                console.log('startRouteAnimation 호출 전');
+                console.log('호출 전 routeCoordinates 길이:', routeCoordinates.length);
+                try {
+                    if (routeCoordinates && routeCoordinates.length > 0) {
+                        startRouteAnimation();
+                    } else {
+                        console.error('startRouteAnimation 호출 전 routeCoordinates가 비어있습니다!');
+                    }
+                } catch (e) {
+                    console.error('자전거 애니메이션 시작 중 오류:', e);
+                    console.error('오류 발생 시 routeCoordinates:', routeCoordinates);
+                    // 애니메이션 오류는 경로 표시를 막지 않음
+                }
+                console.log('startRouteAnimation 호출 후');
+            } catch (error) {
+                console.error('displayRoute 실행 중 오류:', error);
+                console.error('오류 스택:', error.stack);
+                throw error;
+            }
+        }
+        
+        // 경로를 따라 이동하는 자전거 애니메이션 시작
+        function startRouteAnimation() {
+            console.log('=== 자전거 애니메이션 시작 ===');
+            console.log('routeCoordinates:', routeCoordinates);
+            console.log('routeCoordinates 타입:', typeof routeCoordinates);
+            console.log('routeCoordinates가 배열인가:', Array.isArray(routeCoordinates));
+            console.log('routeCoordinates 길이:', routeCoordinates ? routeCoordinates.length : 'null/undefined');
+            
+            // 기존 애니메이션 중지
+            stopRouteAnimation();
+            
+            // routeCoordinates 검증
+            if (!routeCoordinates) {
+                console.error('routeCoordinates가 정의되지 않았습니다!');
+                return;
             }
             
-            // GeoJSON 형식의 좌표를 Leaflet 형식으로 변환
-            var latlngs = geometry.coordinates.map(function(coord) {
-                return [coord[1], coord[0]]; // [lat, lng]
+            if (!Array.isArray(routeCoordinates)) {
+                console.error('routeCoordinates가 배열이 아닙니다!', routeCoordinates);
+                return;
+            }
+            
+            if (routeCoordinates.length === 0) {
+                console.error('경로 좌표가 없습니다! routeCoordinates:', routeCoordinates);
+                return;
+            }
+            
+            console.log('경로 좌표 검증 통과, 첫 번째 좌표:', routeCoordinates[0]);
+            
+            // 작은 원 아이콘 생성 (경로 라인을 따라 이동)
+            var circleIconHtml = '<div class="route-circle-icon"></div>';
+            var circleIcon = L.divIcon({
+                className: 'route-circle-marker-container',
+                html: circleIconHtml,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
             });
             
-            // 경로 polyline 생성
-            routeLayer = L.polyline(latlngs, {
-                color: '#ff6b6b', // 빨간색 계열로 변경
-                weight: 5,
-                opacity: 0.8,
-                smoothFactor: 1
-            }).addTo(map);
+            console.log('자전거 아이콘 생성:', bikeIcon);
             
-            // 경로에 맞게 지도 범위 조정
-            var bounds = routeLayer.getBounds();
-            map.fitBounds(bounds, { padding: [50, 50] });
+            // 시작 위치에 작은 원 배치 (출발 지점)
+            var startPos = routeCoordinates[0];
+            console.log('시작 위치 (출발 지점):', startPos);
+            
+            try {
+                routeBikeMarker = L.marker(startPos, {
+                    icon: circleIcon,
+                    zIndexOffset: 10000,
+                    interactive: false,
+                    riseOnHover: false,
+                    bubblingMouseEvents: false
+                });
+                
+                console.log('원 마커 객체 생성됨:', routeBikeMarker);
+                
+                routeBikeMarker.addTo(map);
+                
+                console.log('원 마커가 지도에 추가됨:', map.hasLayer(routeBikeMarker));
+                
+                // 마커가 제대로 표시되도록 강제 설정 (여러 번 시도)
+                function forceShowMarker() {
+                    if (routeBikeMarker) {
+                        var markerEl = routeBikeMarker.getElement();
+                        if (markerEl) {
+                            markerEl.style.zIndex = '10000';
+                            markerEl.style.position = 'absolute';
+                            markerEl.style.display = 'block';
+                            markerEl.style.visibility = 'visible';
+                            markerEl.style.opacity = '1';
+                            markerEl.style.pointerEvents = 'none';
+                            
+                            // 내부 div도 확인
+                            var innerDiv = markerEl.querySelector('div');
+                            if (innerDiv) {
+                                innerDiv.style.display = 'block';
+                                innerDiv.style.visibility = 'visible';
+                                innerDiv.style.opacity = '1';
+                                innerDiv.style.width = '16px';
+                                innerDiv.style.height = '16px';
+                            }
+                            
+                            console.log('마커 요소 확인:', markerEl);
+                            console.log('마커 위치:', markerEl.style.left, markerEl.style.top);
+                            console.log('마커 스타일:', window.getComputedStyle(markerEl).display);
+                        } else {
+                            console.error('마커 요소를 찾을 수 없음');
+                        }
+                    } else {
+                        console.error('routeBikeMarker가 null입니다!');
+                    }
+                }
+                
+                // 즉시 실행
+                forceShowMarker();
+                // DOM 렌더링 후 다시 실행
+                setTimeout(forceShowMarker, 10);
+                setTimeout(forceShowMarker, 50);
+                setTimeout(forceShowMarker, 100);
+                setTimeout(forceShowMarker, 200);
+                
+                console.log('자전거 아이콘 생성 완료:', startPos, routeBikeMarker);
+                
+                // 애니메이션 시작
+                currentRouteIndex = 0;
+                animateBikeAlongRoute();
+            } catch (error) {
+                console.error('자전거 마커 생성 중 오류:', error);
+            }
+        }
+        
+        // 자전거가 경로를 따라 이동하는 애니메이션
+        function animateBikeAlongRoute() {
+            if (!routeBikeMarker || routeCoordinates.length === 0) {
+                return;
+            }
+            
+            // 경로의 끝에 도달했는지 확인
+            if (currentRouteIndex >= routeCoordinates.length - 1) {
+                // 도착 지점에 도달하면 마커 삭제
+                if (routeBikeMarker) {
+                    map.removeLayer(routeBikeMarker);
+                    routeBikeMarker = null;
+                }
+                
+                // 잠시 대기 후 다시 출발 지점에서 시작
+                routeAnimationId = setTimeout(function() {
+                    // 출발 지점에서 다시 시작
+                    currentRouteIndex = 0;
+                    startRouteAnimation();
+                }, 500); // 0.5초 대기 후 재시작
+                return;
+            }
+            
+            // 다음 좌표로 이동
+            var nextIndex = currentRouteIndex + 1;
+            if (nextIndex < routeCoordinates.length) {
+                var currentPos = routeCoordinates[currentRouteIndex];
+                var nextPos = routeCoordinates[nextIndex];
+                
+                // 두 점 사이의 거리 계산
+                var distance = map.distance(currentPos, nextPos);
+                
+                // 이동 속도 조절 (거리에 따라 시간 조정) - 매우 빠른 속도
+                var speed = 500; // 픽셀/초 (200에서 500으로 증가 - 2.5배 더 빠름)
+                var duration = Math.max(10, (distance / speed) * 10); // 최소 10ms (20ms에서 10ms로 감소)
+                
+                // 선형 보간으로 부드럽게 이동
+                var steps = Math.max(2, Math.ceil(duration / 5)); // 더 빠른 프레임 (8ms에서 5ms로)
+                var step = 0;
+                
+                function moveStep() {
+                    step++;
+                    if (step <= steps) {
+                        var t = step / steps;
+                        var lat = currentPos[0] + (nextPos[0] - currentPos[0]) * t;
+                        var lng = currentPos[1] + (nextPos[1] - currentPos[1]) * t;
+                        
+                        if (routeBikeMarker) {
+                            routeBikeMarker.setLatLng([lat, lng]);
+                        }
+                        
+                        if (step < steps) {
+                            routeAnimationId = requestAnimationFrame(moveStep);
+                        } else {
+                            // 다음 좌표로 이동
+                            currentRouteIndex = nextIndex;
+                            routeAnimationId = setTimeout(animateBikeAlongRoute, 10);
+                        }
+                    }
+                }
+                
+                routeAnimationId = requestAnimationFrame(moveStep);
+            }
+        }
+        
+        // 경로 애니메이션 중지
+        function stopRouteAnimation() {
+            if (routeAnimationId) {
+                if (typeof routeAnimationId === 'number') {
+                    cancelAnimationFrame(routeAnimationId);
+                    clearTimeout(routeAnimationId);
+                }
+                routeAnimationId = null;
+            }
+            
+            if (routeBikeMarker) {
+                map.removeLayer(routeBikeMarker);
+                routeBikeMarker = null;
+            }
+            
+            currentRouteIndex = 0;
+            routeCoordinates = [];
         }
         
         // 경로 초기화
         function clearRoute() {
+            // 경로 애니메이션 중지
+            stopRouteAnimation();
+            
             // 경로 레이어 제거
             if (routeLayer) {
                 map.removeLayer(routeLayer);
@@ -2527,12 +3088,8 @@
             // 정보 업데이트
             updateRouteInfo();
             
-            // 우측 패널 숨기기
-            var infoPanel = document.getElementById('route-info-panel');
+            // 경로 정보 초기화
             var infoContent = document.getElementById('route-info-content');
-            if (infoPanel) {
-                infoPanel.classList.remove('visible');
-            }
             if (infoContent) {
                 infoContent.innerHTML = '<div class="route-info-placeholder">경로를 계산하면 정보가 표시됩니다.</div>';
             }
