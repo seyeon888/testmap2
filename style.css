@@ -1,24 +1,54 @@
+/* 기본 HTML 요소 스타일 - 전체 페이지 레이아웃 설정 */
+html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* 가로/세로 스크롤바 숨기기 */
+}
+
+/* body 스타일 - 페이지 전체 배경 및 스크롤바 설정 */
 body {
     margin: 0;
     padding: 0;
     font-family: Arial, sans-serif;
-    background: #f2f2f2;
+    background: #000000; /* 블랙 배경 */
+    width: 100%;
+    height: 100vh;
+    overflow: hidden; /* 가로/세로 스크롤바 숨기기 */
+    /* 스크롤바 숨기기 (크롬, 엣지, 사파리) */
+    scrollbar-width: none; /* 파이어폭스 */
+    -ms-overflow-style: none; /* IE, 엣지 */
 }
 
+/* 웹킷 브라우저 스크롤바 숨기기 */
+body::-webkit-scrollbar {
+    display: none; /* 크롬, 사파리, 엣지 */
+}
+
+/* 지도 컨테이너 스타일 */
 #map {
     width: 100%;
     height: 100vh;
-    background: #f2f2f2;
+    background: #000000; /* 블랙 배경 */
+    margin-left: 0;
+    transition: margin-left 0.3s ease; /* 패널 표시 시 부드러운 이동 효과 */
 }
 
+/* 통합 패널이 있을 때 지도에 여백 추가 - 패널 너비만큼 왼쪽 여백 */
+body:has(#info-panel) #map {
+    margin-left: 350px;
+}
+
+/* 팝업 정보 박스 기본 스타일 */
 .info {
     padding: 10px;
-    background: white;
+    background: rgba(255, 255, 255, 0.95); /* 반투명 흰색 배경 (텍스트 가독성을 위해 유지) */
     border-radius: 5px;
     font-size: 14px;
 }
 
-/* Tooltip 스타일 */
+/* Tooltip 스타일 - 마커에 마우스를 올렸을 때 표시되는 툴팁 */
 .custom-tooltip {
     background: rgba(0, 0, 0, 0.8) !important;
     color: white !important;
@@ -30,18 +60,21 @@ body {
     white-space: nowrap !important;
 }
 
+/* 툴팁 화살표 색상 */
 .custom-tooltip::before {
     border-top-color: rgba(0, 0, 0, 0.8) !important;
 }
 
+/* 자전거 마커 스타일 - 지도에 표시되는 자전거 대여소 마커 */
 .bike-marker {
     position: relative;
     width: 34px;
     height: 44px;
-    margin-left: -17px;
+    margin-left: -17px; /* 마커 중앙 정렬 */
     margin-top: -38px;
 }
 
+/* 마커 핀 모양 (위쪽 다이아몬드 형태) */
 .bike-marker::before {
     content: "";
     position: absolute;
@@ -49,13 +82,14 @@ body {
     top: 0;
     width: 24px;
     height: 24px;
-    border-radius: 50% 50% 50% 0;
-    background: linear-gradient(145deg, #ff7a18, #af002d);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    border-radius: 50% 50% 50% 0; /* 다이아몬드 모양 */
+    background: #F9035E; /* 분홍색 */
+    box-shadow: 0 4px 10px rgba(249, 3, 94, 0.35);
     transform-origin: 0 100%;
-    transform: translateX(-50%) rotate(-45deg);
+    transform: translateX(-50%) rotate(-45deg); /* 45도 회전하여 핀 모양 생성 */
 }
 
+/* 마커 중앙의 흰색 원 (장식 요소) */
 .bike-marker::after {
     content: "";
     position: absolute;
@@ -65,10 +99,11 @@ body {
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: white;
+    background: rgba(255, 255, 255, 0.95); /* 반투명 흰색 배경 (텍스트 가독성을 위해 유지) */
     box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
+/* 마커 하단의 막대 (핀의 손잡이 부분) */
 .bike-marker__inner {
     position: absolute;
     bottom: 0;
@@ -77,10 +112,11 @@ body {
     width: 8px;
     height: 10px;
     border-radius: 4px;
-    background: #222;
+    background: #F9035E; /* 분홍색 */
     box-shadow: 0 -4px 0 rgba(255, 255, 255, 0.25);
 }
 
+/* 마커 클러스터 스타일 - 여러 마커를 그룹화하여 표시하는 원형 버튼 */
 .bike-cluster {
     display: flex;
     align-items: center;
@@ -88,91 +124,201 @@ body {
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: rgba(32, 32, 32, 0.9);
+    background: #000000; /* 블랙 */
     color: white;
     font-weight: bold;
     font-size: 15px;
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
     border: 2px solid rgba(255, 255, 255, 0.6);
     transition: transform 0.2s ease;
 }
 
+/* 클러스터 내부 숫자 텍스트 위치 조정 */
 .bike-cluster span {
     transform: translateY(1px);
 }
 
+/* 작은 클러스터 (마커 개수가 적을 때) - 블랙 */
 .bike-cluster.cluster-small {
-    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    background: #000000;
 }
 
+/* 중간 크기 클러스터 - 블랙 */
 .bike-cluster.cluster-medium {
-    background: linear-gradient(135deg, #fa709a, #fee140);
+    background: #000000;
 }
 
+/* 큰 클러스터 (마커 개수가 많을 때) - 블랙 */
 .bike-cluster.cluster-large {
-    background: linear-gradient(135deg, #f83600, #f9d423);
+    background: #000000;
     font-size: 16px;
 }
 
+/* 클러스터 호버 효과 - 마우스 오버 시 약간 확대 */
 .bike-cluster:hover {
     transform: scale(1.05);
 }
 
-/* 옵션 패널 스타일 */
-#options-panel {
-    position: fixed;
-    top: 20px;
-    right: 0;
-    width: 280px;
-    background: white;
-    border-radius: 8px 0 0 8px;
-    box-shadow: -4px 4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 9999 !important;
-    transition: box-shadow 0.3s ease;
-    max-height: calc(100vh - 40px);
-    overflow: hidden;
-    display: flex !important;
-    flex-direction: column;
+/* 경로를 따라 이동하는 작은 원 컨테이너 */
+.route-circle-marker-container {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 16px !important;
+    height: 16px !important;
+    display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
-    user-select: none;
+    pointer-events: none !important;
 }
 
-#options-panel.draggable {
-    right: auto;
-    transition: none;
+/* 경로를 따라 이동하는 작은 원 */
+.route-circle-icon {
+    width: 16px !important;
+    height: 16px !important;
+    border-radius: 50% !important;
+    background: #F9035E !important;
+    border: 2px solid #FFFFFF !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 10000 !important;
+    transform: translateZ(0); /* GPU 가속 */
+    pointer-events: none !important;
 }
 
-#options-panel:active {
-    box-shadow: -6px 6px 25px rgba(0, 0, 0, 0.2);
+/* 자전거 아이콘 애니메이션 효과 */
+@keyframes bikeMove {
+    0% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+    100% {
+        transform: translateY(0);
+    }
 }
 
-#options-panel.collapsed {
-    width: 60px;
+/* 경로 라인 그라디언트 애니메이션 */
+.route-line-gradient {
+    stroke: url(#routeGradient);
+    stroke-width: 5;
+    stroke-opacity: 0.8;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
-.options-header {
+/* SVG 그라디언트 애니메이션 */
+@keyframes gradientMove {
+    0% {
+        stop-color: #A8F368;
+        stop-opacity: 1;
+    }
+    50% {
+        stop-color: #F9035E;
+        stop-opacity: 1;
+    }
+    100% {
+        stop-color: #A8F368;
+        stop-opacity: 1;
+    }
+}
+
+.route-gradient-stop-1 {
+    animation: gradientMove 2s ease-in-out infinite;
+}
+
+.route-gradient-stop-2 {
+    animation: gradientMove 2s ease-in-out infinite 0.5s;
+}
+
+/* 통합 정보 패널 스타일 - 화면 왼쪽에 고정된 정보 패널 */
+#info-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 350px; /* 패널 너비 */
+    background: #000000; /* 블랙 배경 */
+    border-radius: 0;
+    box-shadow: 2px 0 10px rgba(169, 243, 104, 0.3); /* 오른쪽 그림자 */
+    z-index: 9999 !important; /* 다른 요소 위에 표시 */
+    height: 100vh; /* 전체 화면 높이 */
+    overflow: hidden;
+    display: flex !important;
+    flex-direction: column; /* 세로 방향 배치 */
+    visibility: visible !important;
+    opacity: 1 !important;
+    user-select: none; /* 텍스트 선택 방지 */
+}
+
+/* 패널 내부 콘텐츠 영역 - 스크롤 가능한 영역 */
+.info-panel-content {
+    padding: 0;
+    overflow-y: auto; /* 세로 스크롤 활성화 */
+    flex: 1; /* 남은 공간 모두 차지 */
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 18px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px 0 0 0;
-    cursor: grab;
-    user-select: none;
+    flex-direction: column;
+    /* 스크롤바 숨기기 (크롬, 엣지, 사파리) */
+    scrollbar-width: none; /* 파이어폭스 */
+    -ms-overflow-style: none; /* IE, 엣지 */
 }
 
-.options-header:active {
-    cursor: grabbing;
+/* 웹킷 브라우저 스크롤바 숨기기 */
+.info-panel-content::-webkit-scrollbar {
+    display: none; /* 크롬, 사파리, 엣지 */
 }
 
-.options-header h3 {
+/* 정보 섹션 스타일 - 패널 내부의 각 정보 블록 (마커 옵션, 대여소 정보, 경로 정보) */
+.info-section {
+    background: #000000; /* 블랙 배경 */
+    border-bottom: 1px solid rgba(169, 243, 104, 0.3);
+    flex-shrink: 0; /* 축소되지 않도록 설정 */
+    min-height: fit-content;
+    margin: 8px; /* 섹션 간 간격 */
+    border-radius: 8px; /* 둥근 모서리 */
+    overflow: hidden;
+}
+
+/* 마지막 섹션의 하단 테두리 제거 */
+.info-section:last-child {
+    border-bottom: none;
+}
+
+/* 섹션 헤더 스타일 - 각 섹션의 제목 영역 */
+.section-header {
+    padding: 12px 18px;
+    background: #000000; /* 블랙 배경 */
+    border-bottom: 1px solid rgba(169, 243, 104, 0.3);
+    position: sticky; /* 스크롤 시 상단에 고정 */
+    top: 0;
+    z-index: 10;
+}
+
+/* 섹션 헤더 제목 스타일 */
+.section-header h4 {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
+    color: white;
+    text-transform: uppercase; /* 대문자 변환 */
+    letter-spacing: 0.5px;
 }
 
+/* 섹션 콘텐츠 영역 - 실제 정보가 표시되는 영역 */
+.section-content {
+    padding: 15px 18px;
+    min-height: 50px;
+    max-height: none;
+    overflow: visible; /* 내용이 넘치면 표시 */
+    background: #000000; /* 블랙 배경 */
+    color: white; /* 화이트 텍스트 */
+}
+
+/* 토글 버튼 스타일 - 섹션 접기/펼치기 버튼 */
 .toggle-btn {
     background: rgba(255, 255, 255, 0.2);
     border: none;
@@ -186,24 +332,22 @@ body {
     transition: background 0.2s;
 }
 
+/* 토글 버튼 호버 효과 */
 .toggle-btn:hover {
     background: rgba(255, 255, 255, 0.3);
 }
 
-.options-content {
-    padding: 15px;
-    overflow-y: auto;
-    flex: 1;
-}
-
+/* 옵션 그룹 스타일 - 옵션들을 묶는 컨테이너 */
 .option-group {
     margin-bottom: 20px;
 }
 
+/* 마지막 옵션 그룹의 하단 여백 제거 */
 .option-group:last-child {
     margin-bottom: 0;
 }
 
+/* 토글 스위치 컨테이너 - 체크박스를 토글 스위치로 표시 */
 .toggle-switch {
     display: flex;
     align-items: center;
@@ -211,179 +355,126 @@ body {
     user-select: none;
 }
 
+/* 기본 체크박스 숨기기 */
 .toggle-switch input[type="checkbox"] {
     display: none;
 }
 
+/* 토글 스위치 슬라이더 배경 */
 .slider {
     position: relative;
     width: 48px;
     height: 24px;
-    background: #ccc;
-    border-radius: 24px;
+    background: rgba(169, 243, 104, 0.3); /* 비활성 상태 반투명 초록색 */ /* 비활성 상태 회색 */
+    border-radius: 24px; /* 둥근 모서리 */
     transition: background 0.3s;
     margin-right: 12px;
     flex-shrink: 0;
 }
 
+/* 토글 스위치 내부 원형 버튼 */
 .slider::before {
     content: "";
     position: absolute;
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: white;
+    background: rgba(255, 255, 255, 0.95); /* 반투명 흰색 배경 (텍스트 가독성을 위해 유지) */
     top: 3px;
     left: 3px;
-    transition: transform 0.3s;
+    transition: transform 0.3s; /* 부드러운 이동 애니메이션 */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* 체크된 상태의 슬라이더 배경색 - 단색 초록색 */
 .toggle-switch input[type="checkbox"]:checked + .slider {
-    background: #667eea;
+    background: #A8F368;
 }
 
+/* 체크된 상태의 슬라이더 버튼 위치 - 오른쪽으로 이동 */
 .toggle-switch input[type="checkbox"]:checked + .slider::before {
     transform: translateX(24px);
 }
 
+/* 토글 스위치 레이블 텍스트 */
 .toggle-label {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: white; /* 화이트 텍스트 */
 }
 
+/* 구별 필터 헤더 스타일 */
 .district-header {
     font-size: 13px;
     font-weight: 600;
-    color: #666;
+    color: white; /* 화이트 텍스트 */
     margin-bottom: 12px;
-    text-transform: uppercase;
+    text-transform: uppercase; /* 대문자 변환 */
     letter-spacing: 0.5px;
 }
 
+/* 구별 필터 접기/펼치기 아이콘 */
 .district-toggle-icon {
     font-size: 10px;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease; /* 회전 애니메이션 */
     display: inline-block;
 }
 
+/* 구별 필터 목록 컨테이너 - 스크롤 가능 */
 .district-filters {
     max-height: 300px;
-    overflow-y: auto;
+    overflow-y: auto; /* 세로 스크롤 */
     padding-right: 5px;
 }
 
+/* 구별 필터 스크롤바 너비 */
 .district-filters::-webkit-scrollbar {
     width: 6px;
 }
 
+/* 구별 필터 스크롤바 트랙 (배경) */
 .district-filters::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: rgba(169, 243, 104, 0.2);
     border-radius: 3px;
 }
 
+/* 구별 필터 스크롤바 썸 (드래그 가능한 부분) */
 .district-filters::-webkit-scrollbar-thumb {
-    background: #888;
+    background: #A8F368;
     border-radius: 3px;
 }
 
+/* 구별 필터 스크롤바 썸 호버 효과 */
 .district-filters::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: #F9035E;
 }
 
+/* 구별 체크박스 스타일 - 각 구 선택 체크박스 */
 .district-checkbox {
     display: flex;
     align-items: center;
     padding: 8px 0;
     cursor: pointer;
     font-size: 14px;
-    color: #333;
+    color: white; /* 화이트 텍스트 */
     transition: color 0.2s;
 }
 
+/* 구별 체크박스 호버 효과 - 초록색으로 변경 */
 .district-checkbox:hover {
-    color: #667eea;
+    color: #A8F368;
 }
 
+/* 구별 체크박스 입력 요소 */
 .district-checkbox input[type="checkbox"] {
     margin-right: 10px;
     width: 16px;
     height: 16px;
     cursor: pointer;
-    accent-color: #667eea;
+    accent-color: #A8F368; /* 체크 표시 색상 */
 }
 
-#options-panel.collapsed .options-content {
-    display: none;
-}
-
-#options-panel.collapsed .options-header h3 {
-    display: none;
-}
-
-/* 옵션 패널이 항상 보이도록 보장 */
-#options-panel {
-    display: flex !important;
-}
-
-#options-panel .options-content {
-    display: block !important;
-}
-
-#options-panel.collapsed .options-content {
-    display: none !important;
-}
-
-/* 경로 찾기 스타일 */
-.route-btn {
-    display: block;
-    width: 100%;
-    padding: 8px 12px;
-    margin: 4px 0;
-    background: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    transition: background 0.2s;
-}
-
-.route-btn:hover {
-    background: #45a049;
-}
-
-.route-btn:active {
-    background: #3d8b40;
-}
-
-.route-controls {
-    margin-top: 8px;
-}
-
-.route-info {
-    margin-bottom: 12px;
-    padding: 8px;
-    background: #f9f9f9;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
-.route-location-info {
-    margin: 4px 0;
-    color: #333;
-}
-
-.route-location-info:first-child {
-    margin-top: 0;
-}
-
-.route-location-info:last-child {
-    margin-bottom: 0;
-}
-
+/* 경로 계산 및 초기화 버튼 공통 스타일 */
 .route-calculate-btn,
 .route-clear-btn {
     width: 100%;
@@ -397,209 +488,350 @@ body {
     transition: all 0.2s;
 }
 
+/* 경로 계산 버튼 - 단색 초록색 */
 .route-calculate-btn {
-    background: #667eea;
+    background: #A8F368;
     color: white;
 }
 
+/* 경로 계산 버튼 호버 효과 (비활성화 상태 제외) */
 .route-calculate-btn:hover:not(:disabled) {
-    background: #5568d3;
+    background: #F9035E;
 }
 
+/* 경로 계산 버튼 비활성화 상태 */
 .route-calculate-btn:disabled {
-    background: #ccc;
+    background: rgba(169, 243, 104, 0.3); /* 비활성 상태 반투명 초록색 */
     cursor: not-allowed;
 }
 
+/* 경로 계산 버튼 활성화 상태 */
 .route-calculate-btn.active {
-    background: #45a049;
+    background: #F9035E;
 }
 
+/* 활성화된 경로 계산 버튼 호버 효과 */
 .route-calculate-btn.active:hover {
-    background: #3d8b40;
+    background: #A8F368;
 }
 
+/* 경로 초기화 버튼 - 단색 분홍색 */
 .route-clear-btn {
-    background: #f44336;
+    background: #F9035E;
     color: white;
 }
 
+/* 경로 초기화 버튼 호버 효과 */
 .route-clear-btn:hover {
-    background: #da190b;
+    background: #A8F368;
 }
 
+/* 경로 결과 표시 영역 */
 .route-result {
     margin-top: 8px;
     font-size: 12px;
 }
 
-/* 경로 마커 스타일 */
+/* 경로 마커 스타일 - 출발지/도착지 마커 */
 .route-marker {
     background: transparent !important;
     border: none !important;
 }
 
+/* 출발지 마커 내부 스타일 - 단색 초록색 배경 */
 .route-start-marker .route-marker-inner {
-    background: #4CAF50;
+    background: #A8F368;
     color: white;
     padding: 4px 12px;
-    border-radius: 15px;
+    border-radius: 15px; /* 둥근 모서리 */
     font-size: 11px;
     font-weight: bold;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(169, 243, 104, 0.3);
+    white-space: nowrap; /* 텍스트 줄바꿈 방지 */
 }
 
+/* 도착지 마커 내부 스타일 - 단색 분홍색 배경 */
 .route-end-marker .route-marker-inner {
-    background: #f44336;
+    background: #F9035E;
     color: white;
     padding: 4px 12px;
-    border-radius: 15px;
+    border-radius: 15px; /* 둥근 모서리 */
     font-size: 11px;
     font-weight: bold;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    white-space: nowrap;
-}
-
-/* 경로 정보 팝업 패널 (좌측) */
-.route-info-panel {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    width: 300px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 9998;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateX(-100%);
-    transition: all 0.3s ease;
-    max-height: calc(100vh - 40px);
-    display: flex;
-    flex-direction: column;
-}
-
-.route-info-panel.visible {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(0);
-}
-
-.route-info-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 18px;
-    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-    color: white;
-    border-radius: 8px 8px 0 0;
-}
-
-.route-info-header h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.close-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: white;
-    width: 28px;
-    height: 28px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 20px;
-    line-height: 1;
-    transition: background 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.close-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-.route-info-content {
-    padding: 20px;
-    overflow-y: auto;
-    flex: 1;
+    box-shadow: 0 2px 8px rgba(249, 3, 94, 0.3);
+    white-space: nowrap; /* 텍스트 줄바꿈 방지 */
 }
 
 .route-info-placeholder {
     text-align: center;
-    color: #999;
+    color: white; /* 화이트 텍스트 */
     font-size: 14px;
     padding: 20px 0;
 }
 
-/* 대여소 정보 패널 (우측 하단) */
-.station-info-panel {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 350px;
-    background: white;
+.station-info-placeholder {
+    text-align: center;
+    color: white; /* 화이트 텍스트 */
+    font-size: 14px;
+    padding: 20px 0;
+}
+
+/* 모던한 대여소 정보 디자인 */
+.station-info-modern {
+    padding: 0;
+}
+
+.station-header-minimal {
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.header-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #A8F368; /* 단색 초록색 */
+    margin-bottom: 12px;
+    display: inline-block;
+}
+
+.header-circle-main {
+    background: #A8F368; /* 단색 초록색 */
+}
+
+.station-name-title-minimal {
+    font-size: 24px;
+    font-weight: 800;
+    color: white; /* 화이트 텍스트 */
+    margin: 0 0 8px 0;
+    line-height: 1.2;
+}
+
+.station-location-minimal {
+    font-size: 13px;
+    color: white; /* 화이트 텍스트 */
+    margin-top: 4px;
+}
+
+.address-section-minimal {
+    background: #000000; /* 블랙 배경 */
+    padding: 16px;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 9998;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(100%);
-    transition: all 0.3s ease;
-    max-height: calc(100vh - 40px);
-    display: flex;
-    flex-direction: column;
+    margin-bottom: 16px;
+    border-left: 4px solid #A8F368;
 }
 
-.station-info-panel.visible {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-}
-
-.station-info-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 18px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px 8px 0 0;
-}
-
-.station-info-header h3 {
-    margin: 0;
-    font-size: 16px;
+.address-label-minimal {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: white; /* 화이트 텍스트 */
+    margin-bottom: 8px;
     font-weight: 600;
 }
 
-.station-info-content {
-    padding: 15px 18px;
-    overflow-y: auto;
-    flex: 1;
-    max-height: 400px;
+.address-value-minimal {
+    font-size: 14px;
+    color: white; /* 화이트 텍스트 */
+    line-height: 1.5;
 }
 
-.station-info-placeholder {
-    color: #999;
+/* 거치율 원형 그리드 디자인 - 거치율을 원형 점들로 시각화 */
+.usage-grid-section {
+    background: #000000; /* 블랙 배경 */
+    padding: 24px 20px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(169, 243, 104, 0.3);
+}
+
+/* 거치율 그리드 헤더 영역 */
+.usage-grid-header {
+    margin-bottom: 20px;
+}
+
+/* 거치율 퍼센테이지 표시 - 큰 숫자 */
+.usage-grid-percentage {
+    font-size: 48px;
+    font-weight: 800;
+    color: white;
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -1px; /* 글자 간격 좁히기 */
+}
+
+/* 거치율 설명 텍스트 */
+.usage-grid-description {
     font-size: 14px;
-    text-align: center;
-    padding: 20px;
+    color: white; /* 화이트 텍스트 */
+    font-weight: 500;
+}
+
+/* 거치율 원형 그리드 컨테이너 - 10열 그리드 */
+.usage-grid-container {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr); /* 10개 열 */
+    gap: 8px; /* 원 사이 간격 */
+    max-width: 100%;
+    grid-auto-rows: auto;
+}
+
+/* 거치율 원형 점 기본 스타일 */
+.usage-dot {
+    width: 100%;
+    aspect-ratio: 1; /* 정사각형 비율 유지 */
+    border-radius: 50%; /* 원형 */
+    transition: transform 0.2s ease;
+    min-width: 12px; /* 최소 너비 설정 */
+    min-height: 12px; /* 최소 높이 설정 */
+}
+
+/* 거치율 원형 점 호버 효과 - 확대 */
+.usage-dot:hover {
+    transform: scale(1.2);
+}
+
+/* 채워진 원형 점 - 100% 이하 거치율 표시 (주황색) */
+.usage-dot-filled {
+    background: #A8F368;
+    box-shadow: 0 2px 4px rgba(169, 243, 104, 0.3);
+}
+
+/* 빈 원형 점 - 미사용 영역 (회색) */
+.usage-dot-empty {
+    background: rgba(169, 243, 104, 0.3); /* 반투명 초록색 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 초과 원형 점 - 100% 초과 거치율 표시 (분홍색) */
+.usage-dot-over {
+    background: #F9035E;
+    box-shadow: 0 2px 4px rgba(249, 3, 94, 0.3);
+}
+
+/* 현재 자전거 수와 거치대 수를 나란히 배치하는 컨테이너 */
+.count-info-container {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.count-info-container > div {
+    flex: 1;
+}
+
+/* 현재 자전거 수 섹션 (거치율과 동일한 타이포 스타일) */
+.bike-count-section {
+    background: #000000; /* 블랙 배경 */
+    padding: 24px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(169, 243, 104, 0.3);
+}
+
+.bike-count-value {
+    font-size: 48px;
+    font-weight: 800;
+    color: white; /* 화이트 텍스트 */
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -1px;
+}
+
+.bike-count-value .unit-text {
+    font-size: 24px;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: baseline;
+    color: white; /* 화이트 텍스트 */
+}
+
+.bike-count-label {
+    font-size: 14px;
+    color: white; /* 화이트 텍스트 */
+    font-weight: 500;
+}
+
+/* 거치대 수 섹션 (현재 자전거, 거치율과 색 통일) */
+.rack-count-section {
+    background: #000000; /* 블랙 배경 */
+    padding: 24px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(169, 243, 104, 0.3);
+}
+
+.rack-count-value {
+    font-size: 48px;
+    font-weight: 800;
+    color: white; /* 화이트 텍스트 */
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -1px;
+}
+
+.rack-count-value .unit-text {
+    font-size: 24px;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: baseline;
+    color: white; /* 화이트 텍스트 */
+}
+
+.rack-count-label {
+    font-size: 14px;
+    color: white; /* 화이트 텍스트 */
+    font-weight: 500;
+}
+
+.additional-info-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(169, 243, 104, 0.3);
+}
+
+.additional-info-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: white; /* 화이트 텍스트 */
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.additional-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(169, 243, 104, 0.3);
+}
+
+.additional-info-item:last-child {
+    border-bottom: none;
+}
+
+.additional-info-label {
+    font-size: 12px;
+    color: white; /* 화이트 텍스트 */
+    font-weight: 500;
+}
+
+.additional-info-value {
+    font-size: 13px;
+    color: white; /* 화이트 텍스트 */
+    font-weight: 600;
+    text-align: right;
 }
 
 .route-info-loading {
     text-align: center;
-    color: #666;
+    color: white; /* 화이트 텍스트 */
     font-size: 14px;
     padding: 20px 0;
 }
 
 .route-info-error {
     text-align: center;
-    color: #d32f2f;
+    color: #F9035E; /* 분홍색 에러 텍스트 */
     font-size: 14px;
     padding: 20px 0;
 }
@@ -614,7 +846,7 @@ body {
 
 .route-info-label {
     font-size: 12px;
-    color: #666;
+    color: white; /* 화이트 텍스트 */
     margin-bottom: 4px;
     font-weight: 500;
     text-transform: uppercase;
@@ -623,130 +855,59 @@ body {
 
 .route-info-value {
     font-size: 16px;
-    color: #333;
+    color: white; /* 화이트 텍스트 */
     font-weight: 600;
 }
 
 .route-info-value.highlight {
-    color: #4CAF50;
+    color: #A8F368; /* 강조 텍스트 색상 - 초록색 */
     font-size: 18px;
 }
 
 .route-info-divider {
     height: 1px;
-    background: #e0e0e0;
+    background: rgba(169, 243, 104, 0.3);
     margin: 16px 0;
 }
 
-/* 자전거 대여소 사용 정보 스타일 */
-.month-select {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 14px;
-    background: white;
-}
-
-.bike-station-info {
-    margin-top: 15px;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.bike-station-summary {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 15px;
-    display: flex;
-    justify-content: space-around;
-}
-
-.summary-item {
-    font-size: 13px;
-    color: #666;
-}
-
-.summary-item strong {
-    color: #007bff;
-    font-size: 16px;
-}
-
-.bike-station-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.district-group {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 5px;
-    padding: 10px;
-}
-
-.district-title {
-    font-weight: 600;
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #007bff;
-}
-
-.station-items {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.station-item {
-    padding: 8px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    border-left: 3px solid #007bff;
-}
-
-.station-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 4px;
-}
-
-.station-rent {
-    font-size: 12px;
-    color: #666;
-}
-
-.station-rent strong {
-    color: #28a745;
-    font-size: 13px;
-}
-
-.more-stations {
-    font-size: 12px;
-    color: #999;
+/* 자전거 아이콘 스타일 */
+.bike-icon {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    margin: 0 2px;
+    font-size: 20px;
+    line-height: 24px;
     text-align: center;
-    padding: 5px;
-    font-style: italic;
+    vertical-align: middle;
+    transition: transform 0.2s ease;
 }
 
-.loading {
-    text-align: center;
-    padding: 20px;
-    color: #666;
-    font-size: 14px;
+.bike-icon:hover {
+    transform: scale(1.2);
 }
 
-.error {
-    text-align: center;
-    padding: 20px;
-    color: #dc3545;
-    font-size: 14px;
-    background: #f8d7da;
-    border-radius: 5px;
+.bike-icon-gray {
+    color: #d0d0d0;
+    filter: grayscale(100%);
+}
+
+.bike-icon-green {
+    color: #4CAF50;
+    filter: none;
+}
+
+.bike-icon-pink {
+    color: #ff69b4;
+    filter: none;
+}
+
+.bike-icons-container {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-left: 8px;
+    flex: 1;
 }
 
