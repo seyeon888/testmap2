@@ -72,35 +72,39 @@ body:has(#info-panel) #map {
     height: 44px;
     margin-left: -17px; /* 마커 중앙 정렬 */
     margin-top: -38px;
+    transition: transform 0.3s ease;
 }
 
-/* 마커 핀 모양 (위쪽 다이아몬드 형태) */
+/* 마커 핀 모양 (테어드롭/역방울 형태) */
 .bike-marker::before {
     content: "";
     position: absolute;
     left: 50%;
     top: 0;
     width: 24px;
-    height: 24px;
-    border-radius: 50% 50% 50% 0; /* 다이아몬드 모양 */
-    background: #F9035E; /* 분홍색 */
-    box-shadow: 0 4px 10px rgba(249, 3, 94, 0.35);
+    height: 32px;
+    border-radius: 50% 50% 50% 0; /* 테어드롭 모양 */
+    background: #000000; /* 검은색 */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
     transform-origin: 0 100%;
     transform: translateX(-50%) rotate(-45deg); /* 45도 회전하여 핀 모양 생성 */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* 마커 중앙의 흰색 원 (장식 요소) */
+/* 마커 중앙의 흰색 원 (컷아웃 요소) */
 .bike-marker::after {
     content: "";
     position: absolute;
     left: 50%;
-    top: 6px;
+    top: 8px;
     transform: translateX(-50%);
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.95); /* 반투명 흰색 배경 (텍스트 가독성을 위해 유지) */
-    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.3);
+    background: #FFFFFF; /* 흰색 */
+    box-shadow: none;
+    transition: transform 0.3s ease;
+    z-index: 1;
 }
 
 /* 마커 하단의 막대 (핀의 손잡이 부분) */
@@ -112,8 +116,65 @@ body:has(#info-panel) #map {
     width: 8px;
     height: 10px;
     border-radius: 4px;
-    background: #F9035E; /* 분홍색 */
+    background: #000000; /* 검은색 */
     box-shadow: 0 -4px 0 rgba(255, 255, 255, 0.25);
+    transition: all 0.3s ease;
+}
+
+/* 마커 호버 애니메이션 - 마우스를 올렸을 때 */
+.leaflet-container .leaflet-marker-icon:hover .bike-marker,
+.leaflet-container .bike-marker:hover {
+    transform: translateX(-50%) translateY(-5px) scale(1.15);
+    z-index: 1000;
+}
+
+.leaflet-container .leaflet-marker-icon:hover .bike-marker::before,
+.leaflet-container .bike-marker:hover::before {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    transform: translateX(-50%) rotate(-45deg) scale(1.1);
+}
+
+.leaflet-container .leaflet-marker-icon:hover .bike-marker::after,
+.leaflet-container .bike-marker:hover::after {
+    transform: translateX(-50%) scale(1.2);
+}
+
+.leaflet-container .leaflet-marker-icon:hover .bike-marker .bike-marker__inner,
+.leaflet-container .bike-marker:hover .bike-marker__inner {
+    transform: translateX(-50%) scale(1.1);
+}
+
+/* 마커 클릭 애니메이션 */
+@keyframes markerClick {
+    0% {
+        transform: translateX(-50%) scale(1);
+    }
+    50% {
+        transform: translateX(-50%) scale(0.9);
+    }
+    100% {
+        transform: translateX(-50%) scale(1.1);
+    }
+}
+
+@keyframes markerPulse {
+    0% {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    }
+    50% {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    }
+}
+
+.bike-marker.marker-clicked {
+    animation: markerClick 0.4s ease;
+}
+
+.bike-marker.marker-clicked::before {
+    animation: markerPulse 0.6s ease;
 }
 
 /* 마커 클러스터 스타일 - 여러 마커를 그룹화하여 표시하는 원형 버튼 */
@@ -868,6 +929,15 @@ body:has(#info-panel) #map {
     height: 1px;
     background: rgba(169, 243, 104, 0.3);
     margin: 16px 0;
+}
+
+.route-info-note {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7); /* 반투명 화이트 텍스트 */
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(169, 243, 104, 0.2);
+    font-style: italic;
 }
 
 /* 자전거 아이콘 스타일 */
