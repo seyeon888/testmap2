@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>자전거 대여소 지도</title>
     
+    <!-- Noto Serif KR 폰트 로드 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -20,7 +25,24 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 초기 진입 안내 오버레이 -->
+    <div id="intro-overlay">
+        <div id="intro-overlay-content" class="noto-serif-kr-guide">
+            <h1>서울 실시간 자전거 지도</h1>
+            <p class="intro-subtitle">자전거 지도에서는 서울 자전거 대여소의 정보를 실시간으로 확인할 수 있어요!</p>
+            <ol>
+                <li>자전거로 여행하고 싶은 <span class="intro-green">지역을 선택</span>해요.</li>
+                <li><span class="intro-green">대여소</span>를 클릭하고 <span class="intro-green">정보를 확인</span>해요.</li>
+                <li>자전거 <span class="intro-green">여행길</span>을 찾아봐요.</li>
+                <li><span class="intro-pink">'사용량 보기'</span>를 눌러 어디에 자전거가 많은지 확인해요.</li>
+            </ol>
+        </div>
+    </div>
+
     <div id="map"></div>
+
+    <!-- 경로 계산 완료 시 재생할 효과음 -->
+    <audio id="route-complete-sound" src="따릉.mp3" preload="auto"></audio>
 
     <!-- 통합 정보 패널 -->
     <div id="info-panel">
@@ -83,6 +105,32 @@
             crossorigin="anonymous"></script>
     
     <script>
+        // 초기 안내 오버레이: 한 번 클릭하면 사라지도록 설정
+        window.addEventListener('load', function() {
+            var introOverlay = document.getElementById('intro-overlay');
+            if (introOverlay) {
+                introOverlay.addEventListener('click', function() {
+                    introOverlay.style.display = 'none';
+                });
+            }
+        });
+
+        // 경로 계산 완료 효과음 재생 함수
+        function playRouteCompleteSound() {
+            try {
+                var audio = document.getElementById('route-complete-sound');
+                if (audio) {
+                    // 매번 처음부터 재생
+                    audio.currentTime = 0;
+                    audio.play().catch(function(err) {
+                        console.warn('경로 완료 사운드 재생이 차단되었거나 실패했습니다:', err);
+                    });
+                }
+            } catch (e) {
+                console.warn('경로 완료 사운드 처리 중 오류:', e);
+            }
+        }
+
         /* ============================================
            API 키 및 설정 변수
            ============================================ */
@@ -2106,8 +2154,9 @@
                 icon: L.divIcon({
                     className: 'route-marker route-start-marker',
                     html: '<div class="route-marker-inner">출발</div>',
-                    iconSize: [60, 30],
-                    iconAnchor: [30, 15]
+                    // 도형 크기를 조금 줄인 아이콘 크기
+                    iconSize: [50, 26],
+                    iconAnchor: [25, 13]
                 })
             }).addTo(map);
             
@@ -2130,8 +2179,9 @@
                 icon: L.divIcon({
                     className: 'route-marker route-end-marker',
                     html: '<div class="route-marker-inner">도착</div>',
-                    iconSize: [60, 30],
-                    iconAnchor: [30, 15]
+                    // 도형 크기를 조금 줄인 아이콘 크기
+                    iconSize: [50, 26],
+                    iconAnchor: [25, 13]
                 })
             }).addTo(map);
             
@@ -2841,95 +2891,20 @@
                     return;
                 }
                 
-                // 경로 polyline 생성 (그라디언트 애니메이션 적용)
+                // 경로 polyline 생성 (단색 경로 라인, 그라디언트 애니메이션 미적용)
                 try {
                     routeLayer = L.polyline(latlngs, {
-                        color: '#F9035E', // 핑크색
+                        // 경로 라인 색상 - 사용자 지정 색상 (#9f003a)
+                        color: '#9f003a',
                         weight: 5,
                         opacity: 0.8,
                         smoothFactor: 1,
                         pane: 'overlayPane', // 경로 라인은 overlayPane에 배치
-                        className: 'route-line-gradient' // 그라디언트 클래스 추가
+                        // 그라디언트 클래스는 유지하되, 실제 그라디언트 애니메이션은 사용하지 않음
+                        className: 'route-line-gradient'
                     }).addTo(map);
                     
                     console.log('경로 라인 생성됨:', routeLayer);
-                    
-                    // SVG 그라디언트 정의 추가 (경로 라인에 그라디언트 애니메이션 적용)
-                    setTimeout(function() {
-                        var svg = map.getRenderer(routeLayer).container;
-                        if (svg && svg.querySelector) {
-                            // 기존 gradient 제거
-                            var existingGradient = svg.querySelector('#routeGradient');
-                            if (existingGradient) {
-                                existingGradient.remove();
-                            }
-                            
-                            // SVG defs 요소 찾기 또는 생성
-                            var defs = svg.querySelector('defs');
-                            if (!defs) {
-                                defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                                svg.insertBefore(defs, svg.firstChild);
-                            }
-                            
-                            // 그라디언트 정의 생성 (애니메이션 효과 포함)
-                            var gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-                            gradient.setAttribute('id', 'routeGradient');
-                            gradient.setAttribute('x1', '0%');
-                            gradient.setAttribute('y1', '0%');
-                            gradient.setAttribute('x2', '100%');
-                            gradient.setAttribute('y2', '0%');
-                            gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
-                            
-                            // 그라디언트 중지점 생성 (핑크색 계열)
-                            var stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-                            stop1.setAttribute('offset', '0%');
-                            stop1.setAttribute('stop-color', '#F9035E');
-                            stop1.setAttribute('stop-opacity', '1');
-                            
-                            var stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-                            stop2.setAttribute('offset', '50%');
-                            stop2.setAttribute('stop-color', '#FF6B9D');
-                            stop2.setAttribute('stop-opacity', '1');
-                            
-                            var stop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-                            stop3.setAttribute('offset', '100%');
-                            stop3.setAttribute('stop-color', '#F9035E');
-                            stop3.setAttribute('stop-opacity', '1');
-                            
-                            // 그라디언트 애니메이션 (그라디언트가 경로를 따라 이동하는 효과)
-                            var animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-                            animate.setAttribute('attributeName', 'x1');
-                            animate.setAttribute('values', '0%;100%;0%');
-                            animate.setAttribute('dur', '3s');
-                            animate.setAttribute('repeatCount', 'indefinite');
-                            gradient.appendChild(animate);
-                            
-                            var animate2 = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-                            animate2.setAttribute('attributeName', 'x2');
-                            animate2.setAttribute('values', '100%;200%;100%');
-                            animate2.setAttribute('dur', '3s');
-                            animate2.setAttribute('repeatCount', 'indefinite');
-                            gradient.appendChild(animate2);
-                            
-                            gradient.appendChild(stop1);
-                            gradient.appendChild(stop2);
-                            gradient.appendChild(stop3);
-                            defs.appendChild(gradient);
-                            
-                            // 경로 라인의 path 요소에 그라디언트 적용
-                            var path = routeLayer._path;
-                            if (path) {
-                                path.setAttribute('stroke', 'url(#routeGradient)');
-                                path.setAttribute('stroke-width', '5');
-                                path.setAttribute('stroke-opacity', '0.8');
-                                path.setAttribute('fill', 'none');
-                                path.setAttribute('stroke-linecap', 'round');
-                                path.setAttribute('stroke-linejoin', 'round');
-                            }
-                            
-                            console.log('경로 라인 그라디언트 애니메이션 적용 완료');
-                        }
-                    }, 100);
                     
                     // 경로 라인에서 좌표 추출 (네이게이션 경로 라인 활용)
                     var routeLatLngs = routeLayer.getLatLngs();
@@ -2979,6 +2954,9 @@
                     // 애니메이션 오류는 경로 표시를 막지 않음
                 }
                 console.log('startRouteAnimation 호출 후');
+
+                // 경로 계산 및 표시가 정상적으로 끝났을 때 효과음 재생
+                playRouteCompleteSound();
             } catch (error) {
                 console.error('displayRoute 실행 중 오류:', error);
                 console.error('오류 스택:', error.stack);
