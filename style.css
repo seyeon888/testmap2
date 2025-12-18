@@ -21,6 +21,69 @@ body {
     -ms-overflow-style: none; /* IE, 엣지 */
 }
 
+/* 초기 진입 시 전체 화면 안내 오버레이 */
+#intro-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7); /* 투명도 70%의 검은 면 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20000; /* 지도와 패널보다 항상 위에 */
+    cursor: pointer;
+}
+
+#intro-overlay-content {
+    color: #ffffff;
+    text-align: center;
+    padding: 24px 32px;
+    max-width: 80%;
+    line-height: 1.5;
+}
+
+/* 초기 안내 문구용 Noto Serif KR 폰트 스타일 */
+.noto-serif-kr-guide {
+    font-family: "Noto Serif KR", serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+}
+
+#intro-overlay-content h1 {
+    margin: 0 0 16px;
+    /* 제목을 크게 표시하되 화면을 너무 가리지 않도록 약간 축소 */
+    font-size: 110px;
+    color: #A8F368;
+}
+
+/* 제목 아래 설명 문구 (1~4번보다 조금 작은 크기, 흰색) */
+.intro-subtitle {
+    margin: 0 0 20px;
+    font-size: 18px;
+    color: #ffffff;
+}
+
+#intro-overlay-content ol {
+    margin: 0;
+    padding-left: 0;
+    /* 번호와 문장을 중앙 정렬 */
+    text-align: center;
+    list-style-position: inside;
+    /* 안내 문구(1~4번) 글자를 조금 더 크게 */
+    font-size: 20px;
+    /* 1~4번 문장의 행간을 더 넓게 */
+    line-height: 2.2;
+}
+
+/* 안내 문구 강조용 색상 (출발/도착과 동일 계열) */
+.intro-green {
+    color: #A8F368;
+}
+
+.intro-pink {
+    color: #F9035E;
+}
+
 /* 웹킷 브라우저 스크롤바 숨기기 */
 body::-webkit-scrollbar {
     display: none; /* 크롬, 사파리, 엣지 */
@@ -30,9 +93,22 @@ body::-webkit-scrollbar {
 #map {
     width: 100%;
     height: 100vh;
-    background: #000000; /* 블랙 배경 */
+    /* 지도 영역은 타일 색과 비슷한 밝은 색으로 설정하여
+       확대/축소 시 타일 사이에 보이는 수직/수평선(틈)을 최소화 */
+    background: #f2efe9;
     margin-left: 0;
     transition: margin-left 0.3s ease; /* 패널 표시 시 부드러운 이동 효과 */
+}
+
+/* Leaflet 기본 컨테이너 배경도 타일 색과 맞춰서
+   확대/축소 시 생기는 검은 틈이 보이지 않도록 설정 */
+.leaflet-container {
+    background: #f2efe9 !important;
+}
+
+/* 타일 사이 미세한 틈이 생길 때 노출되는 배경색 통일 */
+.leaflet-tile {
+    background-color: #f2efe9;
 }
 
 /* 통합 패널이 있을 때 지도에 여백 추가 - 패널 너비만큼 왼쪽 여백 */
@@ -238,7 +314,8 @@ body:has(#info-panel) #map {
     width: 16px !important;
     height: 16px !important;
     border-radius: 50% !important;
-    background: #F9035E !important;
+    /* 경로 안내 점 색상 - 사용자 지정 색상 (#590c28) */
+    background: #9f003a !important;
     border: 2px solid #FFFFFF !important;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
     display: block !important;
@@ -265,7 +342,8 @@ body:has(#info-panel) #map {
 
 /* 경로 라인 그라디언트 애니메이션 */
 .route-line-gradient {
-    stroke: url(#routeGradient);
+    /* 경로 라인 단색 색상 (#9f003a) */
+    stroke: #9f003a;
     stroke-width: 5;
     stroke-opacity: 0.8;
     fill: none;
@@ -273,28 +351,30 @@ body:has(#info-panel) #map {
     stroke-linejoin: round;
 }
 
-/* SVG 그라디언트 애니메이션 */
+/* SVG 그라디언트 애니메이션 (사용 안 함 – 경로 라인은 단색으로 표시) */
 @keyframes gradientMove {
     0% {
-        stop-color: #A8F368;
+        stop-color: #00E5FF;
         stop-opacity: 1;
     }
     50% {
-        stop-color: #F9035E;
+        stop-color: #B388FF;
         stop-opacity: 1;
     }
     100% {
-        stop-color: #A8F368;
+        stop-color: #00E5FF;
         stop-opacity: 1;
     }
 }
 
 .route-gradient-stop-1 {
-    animation: gradientMove 2s ease-in-out infinite;
+    /* 애니메이션 비활성화 – 고정 색상 유지 */
+    animation: none;
 }
 
 .route-gradient-stop-2 {
-    animation: gradientMove 2s ease-in-out infinite 0.5s;
+    /* 애니메이션 비활성화 – 고정 색상 유지 */
+    animation: none;
 }
 
 /* 통합 정보 패널 스타일 - 화면 왼쪽에 고정된 정보 패널 */
@@ -602,8 +682,15 @@ body:has(#info-panel) #map {
 /* 출발지 마커 내부 스타일 - 단색 초록색 배경 */
 .route-start-marker .route-marker-inner {
     background: #A8F368;
-    color: white;
-    padding: 4px 12px;
+    /* 출발 텍스트를 검정색으로 표시 */
+    color: #000000;
+    /* 아이콘 크기(50x26)에 맞춰 텍스트를 정확히 중앙 정렬 */
+    display: flex;
+    align-items: center;   /* 수직 중앙 정렬 */
+    justify-content: center; /* 수평 중앙 정렬 */
+    min-width: 50px;
+    height: 26px;
+    padding: 0 12px;
     border-radius: 15px; /* 둥근 모서리 */
     font-size: 11px;
     font-weight: bold;
@@ -615,7 +702,13 @@ body:has(#info-panel) #map {
 .route-end-marker .route-marker-inner {
     background: #F9035E;
     color: white;
-    padding: 4px 12px;
+    /* 아이콘 크기(50x26)에 맞춰 텍스트를 정확히 중앙 정렬 */
+    display: flex;
+    align-items: center;   /* 수직 중앙 정렬 */
+    justify-content: center; /* 수평 중앙 정렬 */
+    min-width: 50px;
+    height: 26px;
+    padding: 0 12px;
     border-radius: 15px; /* 둥근 모서리 */
     font-size: 11px;
     font-weight: bold;
@@ -647,17 +740,13 @@ body:has(#info-panel) #map {
     position: relative;
 }
 
+/* 대여소 이름 위의 큰 원은 숨김 처리 */
 .header-circle {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: #A8F368; /* 단색 초록색 */
-    margin-bottom: 12px;
-    display: inline-block;
+    display: none;
 }
 
 .header-circle-main {
-    background: #A8F368; /* 단색 초록색 */
+    display: none;
 }
 
 .station-name-title-minimal {
@@ -666,6 +755,9 @@ body:has(#info-panel) #map {
     color: white; /* 화이트 텍스트 */
     margin: 0 0 8px 0;
     line-height: 1.2;
+    /* 대여소 이름 아래 초록색 밑줄 추가 (출발 마커 색상과 동일) */
+    border-bottom: 2px solid #A8F368;
+    padding-bottom: 4px;
 }
 
 .station-location-minimal {
@@ -752,22 +844,26 @@ body:has(#info-panel) #map {
     transform: scale(1.2);
 }
 
-/* 채워진 원형 점 - 100% 이하 거치율 표시 (주황색) */
+/* 사용량 원형 점 색상 규칙
+   - usage-dot-empty  : 기본 영역 (회색)
+   - usage-dot-filled : 100% 이하 사용 영역 (출발 마커와 동일 초록색 #A8F368)
+   - usage-dot-over   : 100% 초과 영역 (도착 마커와 동일 핑크색 #F9035E)
+*/
 .usage-dot-filled {
-    background: #A8F368;
-    box-shadow: 0 2px 4px rgba(169, 243, 104, 0.3);
+    /* 출발지 마커(.route-start-marker)와 동일한 초록색 */
+    background: #A8F368; /* 100 이하: 초록색 */
+    box-shadow: 0 2px 4px rgba(169, 243, 104, 0.4);
 }
 
-/* 빈 원형 점 - 미사용 영역 (회색) */
 .usage-dot-empty {
-    background: rgba(169, 243, 104, 0.3); /* 반투명 초록색 */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    background: #b0b0b0; /* 기본: 회색 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* 초과 원형 점 - 100% 초과 거치율 표시 (분홍색) */
 .usage-dot-over {
-    background: #F9035E;
-    box-shadow: 0 2px 4px rgba(249, 3, 94, 0.3);
+    /* 도착지 마커(.route-end-marker)와 동일한 핑크색 */
+    background: #F9035E; /* 100 초과: 핑크색 */
+    box-shadow: 0 2px 4px rgba(249, 3, 94, 0.5);
 }
 
 /* 현재 자전거 수와 거치대 수를 나란히 배치하는 컨테이너 */
@@ -958,17 +1054,18 @@ body:has(#info-panel) #map {
 }
 
 .bike-icon-gray {
-    color: #d0d0d0;
-    filter: grayscale(100%);
+    /* 사용량 보기 시 색상을 모두 통일하기 위해 핑크색으로 변경 */
+    color: #F9035E;
+    filter: none;
 }
 
 .bike-icon-green {
-    color: #4CAF50;
+    color: #F9035E;
     filter: none;
 }
 
 .bike-icon-pink {
-    color: #ff69b4;
+    color: #F9035E;
     filter: none;
 }
 
